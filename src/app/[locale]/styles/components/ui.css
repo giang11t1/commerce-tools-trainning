@@ -1,0 +1,204 @@
+/*
+ * Shared UI component styles.
+ *
+ * Every reusable look in the store lives here so all pages render the same
+ * buttons, inputs, cards, badges, alerts and typography. See /dev/ui-kit for a
+ * live preview of each class.
+ *
+ * These classes are in the `components` layer, so Tailwind utilities still win:
+ * `className="btn btn-primary w-full mt-4"` works as expected.
+ */
+
+@layer components {
+  /* ---------- Typography ---------- */
+  .heading-1 {
+    @apply text-3xl font-bold text-ink;
+  }
+  .heading-2 {
+    @apply text-2xl font-bold text-ink;
+  }
+  .heading-3 {
+    @apply text-xl font-semibold text-ink;
+  }
+  .heading-4 {
+    @apply text-lg font-semibold text-ink;
+  }
+  .text-body {
+    @apply text-sm text-gray-700;
+  }
+  .text-muted {
+    @apply text-sm text-ink-muted;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-wider text-ink-muted;
+  }
+  .link {
+    @apply font-medium text-brand underline-offset-4 hover:text-brand-hover hover:underline;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors;
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-lg {
+    @apply px-6 py-3 text-base font-semibold;
+  }
+  .btn-block {
+    @apply flex w-full;
+  }
+
+  .btn-primary {
+    @apply bg-brand text-brand-contrast shadow-sm hover:bg-brand-hover;
+  }
+  .btn-secondary {
+    @apply border-gray-300 bg-surface text-gray-700 shadow-sm hover:bg-gray-50;
+  }
+  .btn-outline {
+    @apply border-brand bg-transparent text-brand hover:bg-brand-soft;
+  }
+  .btn-danger {
+    @apply bg-danger text-white shadow-sm hover:bg-danger-hover;
+  }
+  .btn-success {
+    @apply bg-success text-white shadow-sm hover:bg-success-hover;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-gray-700 hover:bg-gray-100;
+  }
+  .btn-link {
+    @apply bg-transparent p-0 text-brand underline-offset-4 hover:underline;
+  }
+  .btn-icon {
+    @apply size-10 rounded-full p-0;
+  }
+
+  /* ---------- Forms ---------- */
+  .label {
+    @apply mb-1 block text-sm font-medium text-gray-700;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply block w-full rounded-md border border-gray-300 bg-surface px-3 py-2 text-sm text-ink placeholder:text-gray-400;
+    @apply focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none;
+    @apply disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500;
+  }
+  .textarea {
+    @apply min-h-30 resize-y;
+  }
+  .input-error {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
+  }
+  .field-error {
+    @apply mt-1 text-xs text-red-600;
+  }
+  .field-hint {
+    @apply mt-1 text-xs text-ink-muted;
+  }
+  .checkbox,
+  .radio {
+    @apply size-4 cursor-pointer border-gray-300 accent-brand;
+  }
+  .checkbox {
+    @apply rounded;
+  }
+
+  /* ---------- Surfaces ---------- */
+  .card {
+    @apply rounded-lg border border-gray-100 bg-surface shadow-sm;
+  }
+  .card-body {
+    @apply p-6;
+  }
+  .card-header {
+    @apply border-b border-gray-100 px-6 py-4;
+  }
+  .card-footer {
+    @apply border-t border-gray-100 px-6 py-4;
+  }
+  .card-interactive {
+    @apply cursor-pointer transition-colors hover:bg-gray-50;
+  }
+  .empty-state {
+    @apply rounded-lg border border-gray-100 bg-surface p-12 text-center text-ink-muted shadow-sm;
+  }
+  .divider {
+    @apply border-t border-line;
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/50;
+  }
+  .modal-panel {
+    @apply relative w-full max-w-md rounded-lg bg-surface p-6 shadow-xl outline-none;
+  }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-neutral {
+    @apply bg-gray-100 text-gray-800;
+  }
+  .badge-info {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .badge-success {
+    @apply bg-green-100 text-green-800;
+  }
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  .badge-danger {
+    @apply bg-red-100 text-red-800;
+  }
+  .badge-sale {
+    @apply rounded bg-red-500 px-2 py-1 font-semibold text-white;
+  }
+  .badge-count {
+    @apply inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1.5 py-0.5 text-xs leading-none font-bold text-white;
+  }
+
+  /* ---------- Alerts ---------- */
+  .alert {
+    @apply rounded-md border p-4 text-sm;
+  }
+  .alert-info {
+    @apply border-blue-100 bg-blue-50 text-blue-700;
+  }
+  .alert-success {
+    @apply border-green-100 bg-green-50 text-green-700;
+  }
+  .alert-warning {
+    @apply border-yellow-100 bg-yellow-50 text-yellow-800;
+  }
+  .alert-error {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
+  /* ---------- Tables ---------- */
+  .table {
+    @apply min-w-full divide-y divide-gray-200 text-sm;
+  }
+  .table thead {
+    @apply bg-gray-50;
+  }
+  .table th {
+    @apply px-4 py-3 text-left text-xs font-semibold tracking-wider text-ink-muted uppercase;
+  }
+  .table td {
+    @apply px-4 py-3 text-gray-700;
+  }
+  .table tbody {
+    @apply divide-y divide-gray-100 bg-surface;
+  }
+  .table tbody tr {
+    @apply transition-colors hover:bg-gray-50;
+  }
+}

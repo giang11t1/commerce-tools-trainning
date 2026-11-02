@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "../../styles/design-tokens.css";
+@import "../[locale]/styles/components/ui.css";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-font-size-body);
+  line-height: var(--ds-line-height-body);
+}
+
+:focus-visible {
+  outline: var(--ds-focus-ring);
+  outline-offset: 2px;
+}
