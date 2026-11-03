@@ -2,10 +2,11 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { BusinessUnit } from '@commercetools/platform-sdk';
 import { getSession } from '@/lib/auth';
-import { getAssociateContacts, getMyBusinessUnits } from '@/lib/business-units';
+import { getMyBusinessUnits } from '@/lib/business-units';
 import AccountSidebar from '@/components/AccountSidebar';
 import CompanyDetailsForm from '@/components/CompanyDetailsForm';
 import DeleteAddressButton from '@/components/DeleteAddressButton';
+import EffectiveBusinessUnitAssociates from '@/components/account/EffectiveBusinessUnitAssociates';
 import { deleteCompanyAddress, saveCompanyDetails } from './actions';
 
 interface CompanyPageProps {
@@ -44,7 +45,6 @@ export default async function CompanyPage({ searchParams }: CompanyPageProps) {
     const result = await getMyBusinessUnits();
     const businessUnits = result.success ? result.businessUnits : [];
     const businessUnit = businessUnits.find((item) => item.key === unit) ?? businessUnits[0];
-    const contacts = businessUnit ? await getAssociateContacts(businessUnit.key) : {};
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -218,54 +218,10 @@ export default async function CompanyPage({ searchParams }: CompanyPageProps) {
                                     )}
                                 </div>
 
-                                {/* Associates */}
-                                <div className="space-y-4">
-                                    <h2 className="text-xl font-semibold">Associates </h2>
-                                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left">
-                                                <thead>
-                                                    <tr className="bg-gray-50 border-b border-gray-100">
-                                                        <th className="px-6 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Name</th>
-                                                        <th className="px-6 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                                                        <th className="px-6 py-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Roles</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {businessUnit.associates.map((associate) => {
-                                                        const contact = contacts[associate.customer.id];
-
-                                                        return (
-                                                            <tr key={associate.customer.id} className="hover:bg-gray-50 transition-colors">
-                                                                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                                                                    {contact?.name || '—'}
-                                                                    {associate.customer.id === customerId && (
-                                                                        <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                    {contact?.email || associate.customer.id}
-                                                                </td>
-                                                                <td className="px-6 py-4 text-sm">
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {associate.associateRoleAssignments.map((assignment) => (
-                                                                            <span
-                                                                                key={assignment.associateRole.key}
-                                                                                className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800"
-                                                                            >
-                                                                                {assignment.associateRole.key}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
+                                <EffectiveBusinessUnitAssociates
+                                    key={businessUnit.id}
+                                    businessUnitId={businessUnit.id}
+                                />
                             </>
                         )}
                     </div>

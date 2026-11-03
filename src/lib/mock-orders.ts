@@ -113,16 +113,16 @@ async function getOrderForCart(
     const response = await withCtStage('look up an existing order', () =>
         storeKey
             ? apiRoot
-                  .withProjectKey({ projectKey })
-                  .inStoreKeyWithStoreKeyValue({ storeKey })
-                  .orders()
-                  .get({ queryArgs })
-                  .execute()
+                .withProjectKey({ projectKey })
+                .inStoreKeyWithStoreKeyValue({ storeKey })
+                .orders()
+                .get({ queryArgs })
+                .execute()
             : apiRoot
-                  .withProjectKey({ projectKey })
-                  .orders()
-                  .get({ queryArgs })
-                  .execute(),
+                .withProjectKey({ projectKey })
+                .orders()
+                .get({ queryArgs })
+                .execute(),
     );
 
     return response.body.results[0];
@@ -142,16 +142,16 @@ async function createOrder(
     const response = await withCtStage('create the order', () =>
         storeKey
             ? apiRoot
-                  .withProjectKey({ projectKey })
-                  .inStoreKeyWithStoreKeyValue({ storeKey })
-                  .orders()
-                  .post({ body: draft })
-                  .execute()
+                .withProjectKey({ projectKey })
+                .inStoreKeyWithStoreKeyValue({ storeKey })
+                .orders()
+                .post({ body: draft })
+                .execute()
             : apiRoot
-                  .withProjectKey({ projectKey })
-                  .orders()
-                  .post({ body: draft })
-                  .execute(),
+                .withProjectKey({ projectKey })
+                .orders()
+                .post({ body: draft })
+                .execute(),
     );
 
     return response.body;

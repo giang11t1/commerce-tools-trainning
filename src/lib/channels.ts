@@ -10,8 +10,8 @@ if (!projectKey) {
 const apiRoot = createApiBuilderFromCtpClient(ctpClient);
 
 export const CHANNEL_KEYS = {
-    inventory: 'inventory-channel',
-    distribution: 'distribution-channel',
+    inventory: 'us-warehouse',
+    distribution: 'us-medium-customers',
 } as const;
 
 export async function getChannels() {

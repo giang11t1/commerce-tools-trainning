@@ -1,7 +1,6 @@
 'use server';
 
 import { apiRoot } from './commercetools';
-import { cookies } from 'next/headers';
 
 const projectKey = process.env.CT_PROJECT_KEY || '';
 
@@ -156,29 +155,7 @@ export async function getCustomerById(id: string) {
 }
 
 export async function getCustomerForPricing(id: string) {
-    const cookieStore = await cookies();
-    const sessionCustomerId = cookieStore.get('ct_customer_id')?.value;
-    const storeKey = cookieStore.get('ct_customer_store_key')?.value;
-    const project = apiRoot.withProjectKey({ projectKey });
-
-    if (sessionCustomerId === id && storeKey) {
-        const response = await project
-            .inStoreKeyWithStoreKeyValue({ storeKey })
-            .customers()
-            .withId({ ID: id })
-            .get()
-            .execute();
-
-        return response.body;
-    }
-
-    const response = await project
-        .customers()
-        .withId({ ID: id })
-        .get()
-        .execute();
-
-    return response.body;
+    return getCustomerById(id);
 }
 
 

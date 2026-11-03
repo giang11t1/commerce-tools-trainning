@@ -12,14 +12,17 @@ const projectKey = process.env.CT_PROJECT_KEY || '';
 
 export type BusinessUnitResult<T> =
     | ({ success: true } & T)
-    | { success: false; error: string };
+    | { success: false; error: string; statusCode?: number; code?: string };
 
 function getErrorMessage(error: unknown, fallback: string) {
     if (error && typeof error === 'object') {
-        const body = (error as { body?: { message?: string } }).body;
+        const body = (error as {
+            body?: { message?: string; errors?: { message?: string }[] };
+        }).body;
 
-        if (body?.message) {
-            return body.message;
+        const message = body?.message ?? body?.errors?.[0]?.message;
+        if (message) {
+            return message;
         }
     }
 
@@ -28,6 +31,17 @@ function getErrorMessage(error: unknown, fallback: string) {
     }
 
     return fallback;
+}
+
+function getErrorDetails(error: unknown) {
+    const apiError = error as {
+        statusCode?: number;
+        body?: { code?: string; errors?: { code?: string }[] };
+    };
+    return {
+        statusCode: apiError?.statusCode,
+        code: apiError?.body?.code ?? apiError?.body?.errors?.[0]?.code,
+    };
 }
 
 /**
@@ -45,7 +59,7 @@ export async function getMyBusinessUnits(): Promise<BusinessUnitResult<{ busines
     const customerId = await getSession();
 
     if (!customerId) {
-        return { success: false, error: 'Unauthorized' };
+        return { success: false, error: 'Unauthorized', statusCode: 401 };
     }
 
     try {
@@ -56,11 +70,16 @@ export async function getMyBusinessUnits(): Promise<BusinessUnitResult<{ busines
 
         return { success: true, businessUnits: response.body.results };
     } catch (error: unknown) {
-        console.error('Error fetching business units:', error);
+        console.error('Error fetching business units as associate:', {
+            path: '/{projectKey}/as-associate/{associateId}/business-units',
+            ...getErrorDetails(error),
+            error,
+        });
 
         return {
             success: false,
             error: getErrorMessage(error, 'Failed to fetch company information'),
+            ...getErrorDetails(error),
         };
     }
 }
@@ -104,7 +123,18 @@ export async function getAssociateContacts(key: string): Promise<Record<string, 
         return {};
     }
 
-    const ids = result.businessUnit.associates.map((associate) => associate.customer.id);
+    const ids = [
+        ...new Set(
+            [
+                ...(result.businessUnit.associates ?? []),
+                ...(result.businessUnit.associateMode === 'ExplicitAndFromParent'
+                    ? result.businessUnit.inheritedAssociates ?? []
+                    : []),
+            ]
+                .map((associate) => associate.customer.id)
+                .filter(Boolean),
+        ),
+    ];
 
     if (ids.length === 0) {
         return {};

@@ -59,28 +59,28 @@ export function getMockOrderErrorDetails(error: unknown): MockOrderErrorDetails 
     const original = isRecord(outer.originalError)
         ? outer.originalError
         : isRecord(outer.cause)
-          ? outer.cause
-          : outer;
+            ? outer.cause
+            : outer;
     const response = isRecord(original.response) ? original.response : {};
     const body = isRecord(original.body)
         ? original.body
         : isRecord(original.error)
-          ? original.error
-        : isRecord(response.body)
-          ? response.body
-          : {};
+            ? original.error
+            : isRecord(response.body)
+                ? response.body
+                : {};
     const errors = Array.isArray(body.errors) ? body.errors : [];
     const firstError = isRecord(errors[0]) ? errors[0] : {};
     const statusCode =
         typeof original.statusCode === 'number'
             ? original.statusCode
             : typeof original.status === 'number'
-              ? original.status
-              : typeof response.status === 'number'
-                ? response.status
-                : typeof body.statusCode === 'number'
-                  ? body.statusCode
-                  : undefined;
+                ? original.status
+                : typeof response.status === 'number'
+                    ? response.status
+                    : typeof body.statusCode === 'number'
+                        ? body.statusCode
+                        : undefined;
     const headers = original.headers ?? response.headers;
     const responseHeaders = isRecord(response.headers)
         ? response.headers
@@ -95,12 +95,12 @@ export function getMockOrderErrorDetails(error: unknown): MockOrderErrorDetails 
         typeof firstError.message === 'string'
             ? firstError.message
             : typeof body.message === 'string'
-              ? body.message
-              : typeof original.message === 'string'
-                ? original.message
-              : original instanceof Error
-                ? original.message
-                : undefined;
+                ? body.message
+                : typeof original.message === 'string'
+                    ? original.message
+                    : original instanceof Error
+                        ? original.message
+                        : undefined;
 
     return {
         stage: typeof outer.stage === 'string' ? outer.stage : undefined,
@@ -108,15 +108,15 @@ export function getMockOrderErrorDetails(error: unknown): MockOrderErrorDetails 
             original instanceof Error
                 ? original.name
                 : typeof original.name === 'string'
-                  ? original.name
-                  : undefined,
+                    ? original.name
+                    : undefined,
         statusCode,
         errorCode:
             typeof firstError.code === 'string'
                 ? firstError.code
                 : typeof original.code === 'string'
-                  ? original.code
-                  : undefined,
+                    ? original.code
+                    : undefined,
         correlationId,
         message: safeErrorMessage(rawMessage),
     };
