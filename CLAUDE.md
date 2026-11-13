@@ -66,6 +66,39 @@ Many `src/lib` modules start with `'use server'` (products, customer, auth, cart
 
 ## Conventions
 
+### Development cart diagnostics
+
+`/dev/cart-inspector` defaults to the active storefront cart selected by the
+HttpOnly `cartId` cookie and also supports explicit cart-ID lookup. Configure a
+random server-only `CART_INSPECTOR_ACCESS_TOKEN` of at least 32 characters and
+enter it in the inspector; never use a commercetools credential as this token.
+Use HTTPS on shared development deployments and distribute the token only to
+authorized developers. The POST endpoint `/api/dev/cart-inspector` requires
+this token before reading cookies or cart data, returns non-cacheable display
+fields only, and returns 404 in production or when the token is not configured.
+Active-cart inspection uses `getCart()` and its customer/state checks, never
+`getOrCreateCart()`. Both inspection modes are read-only and use isolated UI
+state without changing cart cookies, customer sessions, or `CartContext`.
+
+### Password recovery
+
+The localized `/forgot-password` and `/reset-password` pages use commercetools
+password tokens and send reset links directly through SendGrid. Configure
+`CT_PROJECT_KEY`, `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, and a trusted
+`SITE_URL` (HTTPS in production). Set `PASSWORD_RECOVERY_ENABLED=true` only
+after configuring distributed edge rate limits for
+`/api/auth/forgot-password` (by client and target address) and
+`/api/auth/reset-password` (by client); the application
+does not provide distributed rate limiting. Links expire after 30 minutes and
+are sent without SendGrid click tracking. Reset emails may be sent for multiple
+store-scoped accounts that share an address.
+
+Resetting a commercetools password revokes commercetools password-flow tokens,
+but the existing `ct_customer_id` storefront cookie is not revoked by this
+flow. Existing storefront sessions therefore remain valid until their cookies
+expire; resolve session revocation before enabling recovery where immediate
+session invalidation is required.
+
 - Pages under `[locale]` must keep locale context. Use next-intl (`useTranslations` / `getTranslations`) and add keys to both `messages/en.json` and `messages/de.json`.
 - Use `@/components/commercetools-ui/atoms/link` (`link` prop) for internal links in storefront components, as existing pages do.
 - Product cards take `availableQuantity` and `variantQuantities` (stock keyed by variant SKU). Pages compute these server-side before rendering `ProductCard` / `ProductSlider`.

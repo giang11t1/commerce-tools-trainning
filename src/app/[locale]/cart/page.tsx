@@ -16,6 +16,7 @@ import {
     getCouponErrorTranslationKey,
 } from '@/lib/coupon-utils';
 import PriceDisplay from '@/components/PriceDisplay';
+import CartLineItemPurchaseInfo from '@/components/CartLineItemPurchaseInfo';
 import {useCart} from '../../../context/CartContext';
 import RelatedProducts from '@/components/cart/RelatedProducts';
 import {useEffect, useMemo, useState} from 'react';
@@ -326,6 +327,7 @@ export default function CartPage() {
                                                             ? `SKU: ${item.variant.sku}`
                                                             : `Product ID: ${item.productId}`}
                                                     </p>
+                                                    <CartLineItemPurchaseInfo lineItem={item} />
                                                     {item.taxRate && (
                                                         <p className="text-xs text-blue-600 mt-1">
                                                             {translate('taxRateLabel')} ({item.taxRate.amount * 100}%)
@@ -579,7 +581,7 @@ export default function CartPage() {
 
                         <div className="mt-6">
                             <Link
-                                href="/"
+                                link="/"
                                 className="block text-center text-sm text-gray-500 hover:text-blue-600 transition-colors"
                             >
                                 Continue Shopping

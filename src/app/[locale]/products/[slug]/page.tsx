@@ -8,6 +8,8 @@ import {getInventoryMapBySkus} from "@/lib/inventory";
 import { isProductAvailableInCustomerStore } from '@/lib/cart';
 import ProductReviews from "@/components/ProductReviews";
 import { getBrandByKey, getProductBrandKey } from '@/lib/brands';
+import { getProductSubscriptionOffers } from '@/lib/recurrence';
+import ProductViewTracker from './ProductViewTracker';
 
 interface ProductPageProps {
     params: Promise<{ locale: string; slug: string }>;
@@ -65,12 +67,30 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         .map((variant) => variant.sku)
         .filter((sku): sku is string => Boolean(sku));
 
-    const [inventoryMap, isAvailableInStore, relatedInventoryMap, relatedRatings] = await Promise.all([
+    const [
+        inventoryMap,
+        isAvailableInStore,
+        relatedInventoryMap,
+        relatedRatings,
+        subscriptionOptionsResult,
+    ] = await Promise.all([
         getInventoryMapBySkus(skus),
         isProductAvailableInCustomerStore(product.id),
         getInventoryMapBySkus(relatedSkus),
         Promise.all(relatedProducts.map((relatedProduct) => getProductRating(relatedProduct.id))),
+        getProductSubscriptionOffers(product, locale)
+            .then((offers) => ({ offers }))
+            .catch((error: unknown) => ({ error })),
     ]);
+    const subscriptionOffers =
+        'offers' in subscriptionOptionsResult
+            ? subscriptionOptionsResult.offers
+            : [];
+    const subscriptionOptionsUnavailable =
+        'error' in subscriptionOptionsResult;
+    if (subscriptionOptionsUnavailable) {
+        console.error('Failed to load product subscription options:', subscriptionOptionsResult.error);
+    }
 
     const relatedProductsWithInventory = relatedProducts.map((relatedProduct, index) => {
         const variants = [relatedProduct.masterVariant, ...(relatedProduct.variants ?? [])];
@@ -94,6 +114,25 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         };
     });
 
+    const variant = product.masterVariant;
+    const price = variant.prices?.[0]?.value;
+
+    const trackingItem = price
+        ? {
+            item_id: variant.sku || product.id,
+            item_name: productName,
+            price:
+                price.centAmount /
+                Math.pow(10, price.fractionDigits),
+            quantity: 1,
+            ...(categoryName
+                ? { item_category: categoryName }
+                : {}),
+        }
+        : null;
+
+    const trackingCurrency = price?.currencyCode;
+
     return (
         <main className="mx-auto lg:px-4 lg:py-8">
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 lg:mb-8">
@@ -112,7 +151,22 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 <span className="font-medium text-gray-900">{productName}</span>
             </div>
 
-            <ProductDetails product={product} brand={brand} rating={rating} inventoryMap={inventoryMap} isAvailableInStore={isAvailableInStore} />
+            {trackingItem && trackingCurrency && (
+                <ProductViewTracker
+                    item={trackingItem}
+                    currency={trackingCurrency}
+                />
+            )}
+
+            <ProductDetails
+                product={product}
+                brand={brand}
+                rating={rating}
+                inventoryMap={inventoryMap}
+                recurringOffers={subscriptionOffers}
+                subscriptionOptionsUnavailable={subscriptionOptionsUnavailable}
+                isAvailableInStore={isAvailableInStore}
+            />
 
             <div className="pt-6 pb-8 md:grid md:grid-cols-12 md:items-start">
                 <div className="grid gap-y-5 md:col-span-7 md:mb-10 md:pr-20 lg:col-span-8 lg:pr-15">

@@ -9,6 +9,7 @@ interface AddToWishlistPopupProps {
     setShowWishlistPopup: (show: boolean) => void;
     setShowCreateWishlist: (show: boolean) => void;
     product?: ProductProjection;
+    variantId?: number;
     createOnly?: boolean;
     moveFromWishlistId?: string;
 }
@@ -17,6 +18,7 @@ export default function AddToWishlistPopup({
                                                setShowWishlistPopup,
                                                 setShowCreateWishlist,
                                                product,
+                                               variantId,
                                                createOnly = false,
                                                moveFromWishlistId,
                                             }: AddToWishlistPopupProps) {
@@ -37,6 +39,7 @@ export default function AddToWishlistPopup({
     const [selectedWishlistId, setSelectedWishlistId] =
         useState<string | null>(null);
     const [moveError, setMoveError] = useState(false);
+    const [addError, setAddError] = useState<string | null>(null);
 
     const handleAddToWishlist = async (
         wishlistId: string
@@ -48,17 +51,24 @@ export default function AddToWishlistPopup({
         try {
             setAddingToWishlist(true);
             setSelectedWishlistId(wishlistId);
+            setAddError(null);
 
             await addProductToWishlist(
                 wishlistId,
-                product
+                product,
+                variantId,
             );
 
 
             setShowWishlistPopup(false);
         } catch (error) {
+            setAddError(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to add product to shopping list',
+            );
             console.error(
-                'Failed to add product to wishlist:',
+                'Failed to add product to shopping list:',
                 error
             );
         } finally {
@@ -235,14 +245,14 @@ export default function AddToWishlistPopup({
                                     selectedWishlistId ===
                                     wishlist.id;
 
+                                    const requestedVariantId =
+                                        variantId ?? product.masterVariant.id;
                                     const alreadyAdded =
-                                    wishlist.products?.some(
-                                        (
-                                            item
-                                        ) =>
-                                            item.id ===
-                                            product.id
-                                    );
+                                        wishlist.lineItems.some(
+                                            (item) =>
+                                                item.productId === product.id &&
+                                                item.variantId === requestedVariantId,
+                                        );
 
                                 return (
                                     <button
@@ -330,6 +340,12 @@ export default function AddToWishlistPopup({
                             'move-item-error',
                             locale === 'de' ? 'Der Artikel konnte nicht verschoben werden. Bitte versuchen Sie es erneut.' : 'Could not move this item. Please try again.',
                         )}
+                    </p>
+                )}
+
+                {addError && (
+                    <p className="mt-3 text-sm text-red-600" role="alert">
+                        {addError}
                     </p>
                 )}
 

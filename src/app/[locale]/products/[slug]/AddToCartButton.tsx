@@ -24,6 +24,7 @@ type AddToCartButtonProps = {
     compareProduct?: ProductProjection;
     // false when the product is outside the store customer's Product Selections
     isAvailableInStore?: boolean;
+    recurrencePolicyId?: string;
 };
 
 export default function AddToCartButton({
@@ -32,6 +33,7 @@ export default function AddToCartButton({
                                             variantId,
                                             compareProduct,
                                             isAvailableInStore = true,
+                                            recurrencePolicyId,
                                         }: AddToCartButtonProps) {
     const [quantity, setQuantity] = useState(1);
     const { addToCart } = useCart();
@@ -51,6 +53,7 @@ export default function AddToCartButton({
     const isOutOfStock = product.availableQuantity !== undefined && product.availableQuantity <= 0;
     const canAddToCart = !isOutOfStock && isAvailableInStore;
     const translate = useTranslations();
+    const subscriptionTranslate = useTranslations('subscriptions');
 
     const [isAdding, setIsAdding] = useState(false);
 
@@ -63,7 +66,8 @@ export default function AddToCartButton({
             await addToCart(
                 product.id,
                 variantId,
-                quantity
+                quantity,
+                recurrencePolicyId,
             );
         } catch (error) {
             console.error('Failed to add to cart:', error);
@@ -127,10 +131,14 @@ export default function AddToCartButton({
                 >
                     {!isAvailableInStore ? 'Out of stock' :
                     isOutOfStock ? translate('product.outOfStock') :
+                    recurrencePolicyId ? subscriptionTranslate('addSubscriptionToCart') :
                     translate('cart.cart-add')}
                 </button>
                 <div className="flex items-center justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
-                    <WishlistButton product={wishlistProduct} />
+                    <WishlistButton
+                        product={wishlistProduct}
+                        variantId={variantId}
+                    />
 
                     <button
                         type="button"

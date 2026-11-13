@@ -16,6 +16,7 @@ import {
     getMessages,
 } from 'next-intl/server';
 import {CompareProvider} from "@/context/CompareContext";
+import { GoogleTagManager } from '@next/third-parties/google';
 
 const lato = Lato({
     subsets: ['latin'],
@@ -65,6 +66,11 @@ export default async function RootLayout({
                     </WishlistProvider>
                 </CompareProvider>
             </CartProvider>
+            {process.env.NEXT_PUBLIC_GTM_ID && (
+                <GoogleTagManager
+                    gtmId={process.env.NEXT_PUBLIC_GTM_ID}
+                />
+            )}
         </NextIntlClientProvider>
         </body>
         </html>

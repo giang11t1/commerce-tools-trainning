@@ -4,16 +4,23 @@ import React, {useEffect, useState} from 'react';
 import { ProductProjection } from '@commercetools/platform-sdk';
 import { useWishlist } from '@/context/WishlistContext';
 import { useTranslations } from 'use-intl';
+import { useRouter } from '../../i18n/navigation';
 import AddToWishlistPopup from "@/components/AddToWishlistPopup";
 import CreateWishlistPopup from "@/components/CreateWishlistPopup";
 
 interface WishlistButtonProps {
     product: ProductProjection;
     className?: string;
+    variantId?: number;
 }
 
-export default function WishlistButton({ product, className = '' }: WishlistButtonProps) {
+export default function WishlistButton({
+    product,
+    className = '',
+    variantId,
+}: WishlistButtonProps) {
     const translate = useTranslations();
+    const router = useRouter();
     const {
         wishlists,
         createWishlist,
@@ -40,8 +47,6 @@ export default function WishlistButton({ product, className = '' }: WishlistButt
         useState('');
 
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [checkingSession, setCheckingSession] = useState(true);
-
     useEffect(() => {
         const checkSession = async () => {
             try {
@@ -62,8 +67,6 @@ export default function WishlistButton({ product, className = '' }: WishlistButt
                 );
 
                 setIsLoggedIn(false);
-            } finally {
-                setCheckingSession(false);
             }
         };
 
@@ -86,9 +89,7 @@ export default function WishlistButton({ product, className = '' }: WishlistButt
                 window.location.pathname +
                 window.location.search;
 
-            window.location.href = `/login?redirect=${encodeURIComponent(
-                currentUrl
-            )}`;
+            router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
 
             return;
         }
@@ -171,11 +172,18 @@ export default function WishlistButton({ product, className = '' }: WishlistButt
                         d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
                     />
                 </svg>
-                {isWishlisted ? 'In Wishlist' : translate('wishlist.add-to-wishlist')}
+                {isWishlisted
+                    ? translate('wishlist.in-shopping-list')
+                    : translate('wishlist.add-to-wishlist')}
             </button>
 
             {showWishlistPopup && (
-                <AddToWishlistPopup product={product} setShowWishlistPopup={setShowWishlistPopup} setShowCreateWishlist={setShowCreateWishlist} />
+                <AddToWishlistPopup
+                    product={product}
+                    variantId={variantId}
+                    setShowWishlistPopup={setShowWishlistPopup}
+                    setShowCreateWishlist={setShowCreateWishlist}
+                />
             )}
 
             {showCreateWishlist && (

@@ -14,6 +14,7 @@ import {
 } from './cart-lifecycle';
 
 const CART_COOKIE = 'cartId';
+const CART_EXPANSIONS = ['lineItems[*].recurrenceInfo.recurrencePolicy'];
 
 type CartSessionContext = {
     customerId?: string;
@@ -40,7 +41,7 @@ async function fetchStore(key: string) {
         })
         .stores()
         .withKey({ key })
-        .get()
+        .get({ queryArgs: { expand: CART_EXPANSIONS } })
         .execute();
 
     return response.body;
@@ -238,6 +239,7 @@ export async function getOrCreateCart() {
                             ID: cart.id,
                         })
                         .post({
+                            queryArgs: { expand: CART_EXPANSIONS },
                             body: {
                                 version: cart.version,
                                 actions,
@@ -258,6 +260,19 @@ export async function getOrCreateCart() {
                     productId: lineItem.productId,
                     variantId: lineItem.variant.id,
                     quantity: lineItem.quantity,
+                    ...(lineItem.recurrenceInfo && {
+                        recurrenceInfo: {
+                            recurrencePolicy: {
+                                typeId: 'recurrence-policy' as const,
+                                id: lineItem.recurrenceInfo.recurrencePolicy.id,
+                            },
+                            priceSelectionMode:
+                                lineItem.recurrenceInfo.priceSelectionMode,
+                        },
+                    }),
+                    ...(lineItem.priceMode === 'ExternalPrice' && {
+                        externalPrice: lineItem.price.value,
+                    }),
                     ...(context.distributionChannelId && {
                         distributionChannel: {
                             typeId: 'channel' as const,
@@ -281,6 +296,7 @@ export async function getOrCreateCart() {
             })
             .carts()
             .post({
+                queryArgs: { expand: CART_EXPANSIONS },
                 body: {
                     currency: market.currency,
                     country: market.country,

@@ -61,9 +61,9 @@ const Input: FC<InputProps> = ({
 
   const inlineLabelClassName = useClassNames([
     'pointer-events-none absolute left-[12px] z-[1] block font-medium text-gray-600 transition-all duration-150 ease-out',
-    'top-1/2 -translate-y-1/2 text-14 origin-left',
-    'peer-focus:top-[6px] peer-focus:translate-y-0 peer-focus:text-10',
-    'peer-not-placeholder-shown:top-[6px] peer-not-placeholder-shown:translate-y-0 peer-not-placeholder-shown:text-10',
+    'top-1/2 -translate-y-1/2 text-14 origin-left ',
+    'peer-focus:-top-[12px] peer-focus:translate-y-0 peer-focus:text-10 bg-white px-1',
+    'peer-not-placeholder-shown:top-[6px] peer-not-placeholder-shown:translate-y-0 peer-not-placeholder-shown:text-10 ',
   ]);
 
   const labelContainerClassName = useClassNames([
@@ -73,11 +73,11 @@ const Input: FC<InputProps> = ({
   ]);
 
   const inputClassName = useClassNames([
-    'h-40 focus:border-gray-400 focus:ring-0 w-full rounded-md border border-gray-300 px-12 text-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-neutral-400',
+    'h-12 focus:border-gray-400 focus:ring-0 w-full rounded-md border border-gray-300 px-4 text-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-neutral-400',
     bgClassName,
     isInline
-      ? 'peer py-10 placeholder:text-transparent focus:pt-[20px] focus:pb-[4px] not-placeholder-shown:pt-[20px] not-placeholder-shown:pb-[4px]'
-      : 'py-10 placeholder:text-14 placeholder:leading-normal placeholder:text-gray-600',
+      ? 'peer py-2.5 placeholder:text-transparent focus:pt-4 focus:pb-1 not-placeholder-shown:pt-4 not-placeholder-shown:pb-1 focus:text-12'
+      : 'py-2.5 placeholder:text-14 placeholder:leading-normal placeholder:text-gray-600',
     {
       'border-red-500 focus:border-red-500': !!error,
     },

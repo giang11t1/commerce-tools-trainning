@@ -12,6 +12,7 @@ import { useLocale } from 'use-intl';
 import { getLocalizationInfo } from '@/../project.config';
 import { useTranslations } from 'use-intl';
 import { usePathname } from 'next/navigation';
+import { useRouter } from '../../i18n/navigation';
 import Modal from '@/components/commercetools-ui/organisms/modal';
 import AddToWishlistPopup from "@/components/AddToWishlistPopup";
 import CreateWishlistPopup from "@/components/CreateWishlistPopup";
@@ -63,9 +64,6 @@ export default function ProductCard({
     const [creatingWishlist, setCreatingWishlist] =
         useState(false);
 
-    const [addingToWishlist, setAddingToWishlist] =
-        useState(false);
-
     const [showRemoveConfirm, setShowRemoveConfirm] =
         useState(false);
 
@@ -76,12 +74,15 @@ export default function ProductCard({
         isProductInAnyWishlist(product.id);
 
     const locale = useLocale();
+    const router = useRouter();
     const translate = useTranslations();
     const ctLocale =
         getLocalizationInfo(locale).locale;
 
     const pathname = usePathname();
-    const isWishlistPage = pathname.split('/').includes('wishlist');
+    const isWishlistPage = pathname.split('/').some(
+        (segment) => segment === 'wishlist' || segment === 'shopping-lists',
+    );
     const canMoveFromActiveWishlist = Boolean(
         isWishlistPage &&
         activeWishlistId &&
@@ -94,8 +95,6 @@ export default function ProductCard({
         useState(false);
 
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [checkingSession, setCheckingSession] = useState(true);
-
     const isList = viewMode === 'list';
 
 
@@ -119,8 +118,6 @@ export default function ProductCard({
                 );
 
                 setIsLoggedIn(false);
-            } finally {
-                setCheckingSession(false);
             }
         };
 
@@ -223,9 +220,7 @@ export default function ProductCard({
                 window.location.pathname +
                 window.location.search;
 
-            window.location.href = `/login?redirect=${encodeURIComponent(
-                currentUrl
-            )}`;
+            router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
 
             return;
         }
@@ -239,7 +234,7 @@ export default function ProductCard({
         e.preventDefault();
         e.stopPropagation();
 
-        if (addingToWishlist || removingFromWishlist) {
+        if (removingFromWishlist) {
             return;
         }
 
@@ -496,7 +491,7 @@ export default function ProductCard({
                    <button
                        type="button"
                        onClick={handleWishlistClick}
-                       disabled={addingToWishlist || removingFromWishlist}
+                       disabled={removingFromWishlist}
                        className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                    >
                        {translate.has('wishlist.move-item-button')
@@ -516,14 +511,13 @@ export default function ProductCard({
                            : handleWishlistClick
                    }
                    disabled={
-                       addingToWishlist ||
                        removingFromWishlist
                    }
                    className="absolute top-3 right-3 text-red-500 transition-colors z-10 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                    aria-label={
                        isWishlisted
-                           ? 'Remove from wishlist'
-                           : 'Add to wishlist'
+                           ? translate('wishlist.remove-from-shopping-list')
+                           : translate('wishlist.add-to-wishlist')
                    }
                >
                    {(isWishlisted && isWishlistPage) ? (

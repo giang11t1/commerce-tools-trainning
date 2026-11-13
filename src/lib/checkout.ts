@@ -21,6 +21,8 @@ import { getMockOrderErrorDetails } from '@/lib/mock-order-utils';
 import type { MoneyValue } from '@/lib/checkout-utils';
 import { areCheckoutAddressesEqual } from '@/lib/checkout-utils';
 
+const CART_EXPANSIONS = ['lineItems[*].recurrenceInfo.recurrencePolicy'];
+
 export async function createCheckoutSession(
     cartId: string,
     locale = 'en-US',
@@ -87,8 +89,9 @@ export async function createCheckoutSession(
          * ---------------------------------------------------------
          */
 
+        // Order-from-cart creates Recurring Orders for cart lines with recurrenceInfo.
         const scopes =
-            `manage_sessions:${projectKey} manage_orders:${projectKey}`;
+            `manage_sessions:${projectKey} manage_orders:${projectKey} manage_recurring_orders:${projectKey}`;
 
         const tokenResponse = await fetch(
             `${authUrl}/oauth/token`,
@@ -296,7 +299,7 @@ async function fetchCheckoutCart(cartId: string): Promise<Cart> {
         .withProjectKey({ projectKey })
         .carts()
         .withId({ ID: cartId })
-        .get()
+        .get({ queryArgs: { expand: CART_EXPANSIONS } })
         .execute();
 
     return response.body;
@@ -597,7 +600,10 @@ export async function updateCartWithShippingAddress(
                             .withProjectKey({ projectKey })
                             .carts()
                             .withId({ ID: cart.id })
-                            .post({ body: { version: cart.version, actions } })
+                            .post({
+                                queryArgs: { expand: CART_EXPANSIONS },
+                                body: { version: cart.version, actions },
+                            })
                             .execute(),
                     );
                     addressUpdate = response.body;
@@ -675,6 +681,7 @@ export async function setCheckoutShippingMethod(
                     .carts()
                     .withId({ ID: cart.id })
                     .post({
+                        queryArgs: { expand: CART_EXPANSIONS },
                         body: {
                             version: cart.version,
                             actions: [{

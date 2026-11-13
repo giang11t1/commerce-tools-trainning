@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import useClassNames from 'helpers/hooks/useClassNames';
+import useClassNames from '@/helpers/hooks/useClassNames';
 
 type FeedbackProps = {
   error: string;

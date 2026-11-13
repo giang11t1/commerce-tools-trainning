@@ -51,19 +51,19 @@ const Checkbox: React.FC<CheckboxProps> = ({
     onMouseLeave?.(e);
   };
 
-  const containerClassNames = useClassNames(['flex items-center gap-12', containerClassName]);
+  const containerClassNames = useClassNames(['flex items-center gap-2', containerClassName]);
   const buttonClassName = useClassNames([
     'relative size-5 shrink-0 cursor-pointer rounded-sm border',
     isChecked || isHovered ? 'border-gray-600' : 'border-neutral-400',
   ]);
 
   const inputClassName = useClassNames([
-    'absolute w-full h-full z-[2] checked:bg-none bg-transparent focus:border-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 rounded-sm text-transparent border-neutral-400',
+    'absolute inset-0 z-[2] m-0 size-full cursor-pointer appearance-none rounded-sm border-0 bg-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600',
     className,
   ]);
 
   const iconClassName = useClassNames([
-    'absolute top-[50%] z-[1] left-[50%] h-16 w-16 translate-y-[-50%] translate-x-[-50%] stroke-[2px]',
+    'pointer-events-none absolute top-1/2 left-1/2 z-[1] size-4 -translate-x-1/2 -translate-y-1/2 stroke-[2px]',
     isChecked || isHovered ? 'block' : 'hidden',
     isChecked && !disableBackground ? 'text-white' : 'text-gray-600',
   ]);
@@ -71,7 +71,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
   const backgroundClassName = useClassNames(['absolute inset-0 z-0 rounded-sm', { 'bg-gray-600': !!isChecked }]);
 
   const LabelElement = (
-    <label id={`${inputId}-label`} htmlFor={inputId} className="text-14 text-gray-600">
+    <label id={`${inputId}-label`} htmlFor={inputId} className="cursor-pointer text-sm leading-5 text-gray-600">
       {label}
     </label>
   );
@@ -94,7 +94,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
           {...props}
         />
 
-        <CheckIcon className={iconClassName} />
+        <CheckIcon aria-hidden="true" className={iconClassName} />
 
         {!disableBackground && <div className={backgroundClassName} />}
       </div>

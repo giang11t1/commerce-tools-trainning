@@ -25,6 +25,7 @@ import type {
     Address,
 } from '@commercetools/platform-sdk';
 import { getCommerceMarket } from '@/lib/commerce-market';
+import { trackAddToCart } from '@/helpers/analytics/ecommerce';
 
 export const CART_ITEM_ADDED_EVENT = 'cart:item-added';
 
@@ -36,6 +37,7 @@ interface CartContextType {
         productId: string,
         variantId: number,
         quantity?: number,
+        recurrencePolicyId?: string,
     ) => Promise<void>;
 
     removeFromCart: (
@@ -148,17 +150,37 @@ export function CartProvider({
         productId: string,
         variantId: number,
         quantity = 1,
+        recurrencePolicyId?: string,
     ) => {
-        applyResult(
+        const updatedCart = applyResult(
             await addToCartAction({
                 productId,
                 variantId,
                 quantity,
+                recurrencePolicyId,
             }),
         );
 
+        // Find the product that was added
+        const lineItem = updatedCart.lineItems.find(
+            (item) =>
+                item.productId === productId &&
+                item.variant.id === variantId
+        );
+
+        // Track only after successful Cart API update
+        if (lineItem) {
+            trackAddToCart(
+                lineItem,
+                quantity,
+                updatedCart.totalPrice.currencyCode
+            );
+        }
+
         if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event(CART_ITEM_ADDED_EVENT));
+            window.dispatchEvent(
+                new Event(CART_ITEM_ADDED_EVENT)
+            );
         }
     };
 

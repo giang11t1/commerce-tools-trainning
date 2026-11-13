@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiRoot } from '@/lib/commercetools';
+import { enqueueWelcomeEmail } from '@/lib/email/email-jobs';
 
 type RegistrationBody = {
     firstName?: unknown;
@@ -52,6 +53,21 @@ export async function POST(request: NextRequest) {
             .customers()
             .post({ body: { firstName, lastName, email, password } })
             .execute();
+
+
+            try {
+                const result = await enqueueWelcomeEmail(
+                    response.body.customer.id
+                );
+
+                console.info('[Welcome Email] Job enqueue result', result);
+            } catch (error) {
+                console.error('[Welcome Email] Failed to enqueue job', {
+                    customerId: response.body.customer.id,
+                    error,
+                });
+            }
+
 
         return NextResponse.json(
             {

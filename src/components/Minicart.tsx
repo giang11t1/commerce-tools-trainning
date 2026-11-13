@@ -5,6 +5,7 @@ import Link from '@/components/commercetools-ui/atoms/link';
 import {useCart} from '../context/CartContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriceDisplay from '@/components/PriceDisplay';
+import CartLineItemPurchaseInfo from '@/components/CartLineItemPurchaseInfo';
 import { getSubtotalMoney, getTaxBasis } from '@/lib/checkout-utils';
 import { useLocale, useTranslations } from 'use-intl';
 
@@ -195,6 +196,7 @@ export default function Minicart({
                                                     <PriceDisplay money={item.totalPrice} locale={locale} />
                                                 </p>
                                             </div>
+                                            <CartLineItemPurchaseInfo lineItem={item} />
 
                                             <div className="mt-2 flex items-center justify-between text-xs">
                                                 {/* Quantity */}

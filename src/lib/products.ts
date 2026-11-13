@@ -9,7 +9,10 @@ import { getChannelByKey, CHANNEL_KEYS } from './channels';
 import { getCommerceMarket, toMinorAmount } from './commerce-market';
 import { getInventoryMapBySkus } from './inventory';
 import { getProductRating } from './reviews';
-import { isProductAvailableInCustomerStore } from './cart';
+import {
+    getCartSessionContext,
+    isProductAvailableInCustomerStore,
+} from './cart';
 import {
     combineProductSearchExpressions,
     executeCategoryProductSearch,
@@ -35,7 +38,7 @@ export async function getProducts(locale = 'en-US') {
         customer?.custom?.fields?.priceChannelId as string | undefined,
     );
 
-    const queryArgs: any = {
+    const queryArgs: Record<string, string | number | string[]> = {
         priceCurrency: market.currency,
         priceCountry: market.country,
     };
@@ -61,21 +64,12 @@ export async function getProducts(locale = 'en-US') {
 
 export async function getProductBySlug(slug: string, locale = 'en-US') {
     const market = getCommerceMarket(locale);
-    const customerId = await getSession();
+    const cartContext = await getCartSessionContext();
+    const customer = cartContext.customerId
+        ? await getCustomerForPricing(cartContext.customerId)
+        : null;
 
-    let customerGroupId: string | undefined;
-    let customerPriceChannelId: string | undefined;
-
-    if (customerId) {
-        const customer = await getCustomerForPricing(customerId);
-
-        customerGroupId = customer?.customerGroup?.id;
-        customerPriceChannelId = customer?.custom?.fields?.priceChannelId as string | undefined;
-    }
-
-    const priceChannelId = await getPriceChannelId(customerPriceChannelId);
-
-    const queryArgs: any = {
+    const queryArgs: Record<string, string | number | string[]> = {
         where: `slug(${market.locale}="${slug}")`,
         expand: [
             'categories[*]',
@@ -85,12 +79,16 @@ export async function getProductBySlug(slug: string, locale = 'en-US') {
         priceCountry: market.country,
     };
 
-    if (customerGroupId) {
-        queryArgs.priceCustomerGroup = customerGroupId;
+    if (customer?.customerGroup?.id) {
+        queryArgs.priceCustomerGroup = customer.customerGroup.id;
     }
 
-    if (priceChannelId) {
-        queryArgs.priceChannel = priceChannelId;
+    if (cartContext.distributionChannelId) {
+        queryArgs.priceChannel = cartContext.distributionChannelId;
+    }
+
+    if (cartContext.storeKey) {
+        queryArgs.storeProjection = cartContext.storeKey;
     }
 
     const response = await apiRoot
@@ -408,7 +406,7 @@ export async function getRelatedProducts(
     const priceChannelId = await getPriceChannelId(
         customer?.custom?.fields?.priceChannelId as string | undefined,
     );
-    const queryArgs: any = {
+    const queryArgs: Record<string, string | number | string[]> = {
         where,
         limit: relatedProducts.length,
         priceCurrency: market.currency,
@@ -468,7 +466,7 @@ export async function getRelatedProductsCart(
         where.push(`id not in (${toList(excludeProductIds)})`);
     }
 
-    const queryArgs: any = {
+    const queryArgs: Record<string, string | number | string[]> = {
         where: where.join(' and '),
         limit: 8,
         priceCurrency: market.currency,
@@ -512,25 +510,30 @@ export async function getRelatedProductsForCartItems(
 export async function getWishlistProducts(
     customerId: string,
     locale = 'en-US',
+    storeKey?: string,
 ) {
     const market = getCommerceMarket(locale);
     const customer = await getCustomerById(customerId);
     const priceChannelId = await getPriceChannelId(
         customer?.custom?.fields?.priceChannelId as string | undefined
     );
-    const response =
-        await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
+    const project = apiRoot.withProjectKey({
+        projectKey: process.env.CT_PROJECT_KEY!,
+    });
+    const queryArgs = {
+        queryArgs: {
+            where: `customer(id="${customerId}")`,
+            limit: 100,
+            expand: ['lineItems[*].variant'],
+        },
+    };
+    const response = storeKey
+        ? await project
+            .inStoreKeyWithStoreKeyValue({ storeKey })
             .shoppingLists()
-            .get({
-                queryArgs: {
-                    where: `customer(id="${customerId}")`,
-                    limit: 100,
-                },
-            })
-            .execute();
+            .get(queryArgs)
+            .execute()
+        : await project.shoppingLists().get(queryArgs).execute();
 
     const shoppingLists = response.body.results;
 
@@ -560,10 +563,11 @@ export async function getWishlistProducts(
                 Object.values(list.name)[0] ??
                 'Wishlist',
             products: [],
+            lineItems: [],
         }));
     }
 
-    const productQueryArgs: any = {
+    const productQueryArgs: Record<string, string | number> = {
         where: productIds
             .map((id) => `id="${id}"`)
             .join(' or '),
@@ -579,16 +583,10 @@ export async function getWishlistProducts(
         productQueryArgs.priceCustomerGroup = customer.customerGroup.id;
     }
 
-    const productsResponse =
-        await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .productProjections()
-            .get({
-                queryArgs: productQueryArgs,
-            })
-            .execute();
+    const productsResponse = await project
+        .productProjections()
+        .get({ queryArgs: productQueryArgs })
+        .execute();
 
     const products =
         productsResponse.body.results;
@@ -609,6 +607,31 @@ export async function getWishlistProducts(
             Object.values(list.name)[0] ??
             'Wishlist',
 
+        lineItems: [
+            ...list.lineItems.map((lineItem) => ({
+                id: lineItem.id,
+                productId: lineItem.productId,
+                variantId: lineItem.variantId ?? lineItem.variant?.id ?? 1,
+                quantity: lineItem.quantity,
+                product: productMap.get(lineItem.productId),
+            })),
+            ...(list.textLineItems ?? [])
+                .filter((item) => item.key?.startsWith('wishlist-product-'))
+                .map((item) => ({
+                    id: item.id,
+                    productId: item.key!.slice('wishlist-product-'.length),
+                    variantId: 1,
+                    quantity: item.quantity,
+                    isTextLineItem: true,
+                    product: productMap.get(
+                        item.key!.slice('wishlist-product-'.length),
+                    ),
+                })),
+        ].filter(
+            (lineItem): lineItem is typeof lineItem & {
+                product: ProductProjection;
+            } => Boolean(lineItem.product),
+        ),
         products: [
             ...list.lineItems.map((lineItem) => lineItem.productId),
             ...(list.textLineItems ?? [])
@@ -620,9 +643,7 @@ export async function getWishlistProducts(
         ]
             .map((productId) => productMap.get(productId))
             .filter(
-                (
-                    product,
-                ): product is ProductProjection =>
+                (product): product is ProductProjection =>
                     Boolean(product),
             ),
     }));

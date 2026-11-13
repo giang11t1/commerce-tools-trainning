@@ -1,348 +1,186 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiRoot } from '@/lib/commercetools';
-import { getSession } from '@/lib/auth';
+import {
+    deleteCustomerShoppingList,
+    getOwnedShoppingList,
+    getShoppingListCustomerContext,
+    ShoppingListAccessError,
+    updateCustomerShoppingList,
+} from '@/lib/shopping-lists';
 
 interface RouteContext {
-    params: Promise<{
-        wishlistId: string;
-    }>;
+    params: Promise<{ wishlistId: string }>;
+}
+
+function getErrorStatus(error: unknown) {
+    if (error instanceof ShoppingListAccessError) {
+        return 403;
+    }
+
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+        const statusCode = error.statusCode;
+        if (typeof statusCode === 'number' && statusCode >= 400 && statusCode <= 599) {
+            return statusCode;
+        }
+    }
+
+    return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (error && typeof error === 'object' && 'body' in error) {
+        const body = error.body;
+        if (body && typeof body === 'object' && 'message' in body &&
+            typeof body.message === 'string') {
+            return body.message;
+        }
+    }
+
+    return error instanceof Error ? error.message : fallback;
 }
 
 export async function POST(
     request: NextRequest,
-    { params }: RouteContext
+    { params }: RouteContext,
 ) {
     try {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
+            return NextResponse.json(
+                { message: 'Customer is not logged in' },
+                { status: 401 },
+            );
+        }
+
         const { wishlistId } = await params;
-
-        const customerId = await getSession();
-
-        if (!customerId) {
-            return NextResponse.json(
-                {
-                    message: 'Customer is not logged in',
-                },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const {
-            productId,
-            variantId,
-        } = body;
-
-        if (!productId) {
-            return NextResponse.json(
-                {
-                    message: 'productId is required',
-                },
-                { status: 400 }
-            );
-        }
-
-        // Get wishlist first to make sure
-        // it belongs to the current customer.
-        const wishlistResponse =
-            await apiRoot
-                .withProjectKey({
-                    projectKey: process.env.CT_PROJECT_KEY!,
-                })
-                .shoppingLists()
-                .withId({
-                    ID: wishlistId,
-                })
-                .get({
-                    queryArgs: {
-                        expand: [
-                            'lineItems[*].variant',
-                        ],
-                    },
-                })
-                .execute();
-
-        const wishlist =
-            wishlistResponse.body;
+        const body = await request.json() as {
+            productId?: unknown;
+            variantId?: unknown;
+            quantity?: unknown;
+        };
+        const productId = typeof body.productId === 'string' ? body.productId : '';
+        const variantId = body.variantId;
+        const quantity = body.quantity ?? 1;
 
         if (
-            wishlist.customer?.id !==
-            customerId
+            !productId ||
+            (variantId !== undefined &&
+                (!Number.isInteger(variantId) || Number(variantId) < 1)) ||
+            !Number.isInteger(quantity) ||
+            Number(quantity) < 1 ||
+            Number(quantity) > 999
         ) {
             return NextResponse.json(
-                {
-                    message:
-                        'Wishlist does not belong to customer',
-                },
-                { status: 403 }
+                { message: 'A valid product, variant, and quantity are required' },
+                { status: 400 },
             );
         }
 
-        // Check if product already exists
-        const existingLineItem =
-            wishlist.lineItems.find(
-                (item) =>
-                    item.productId === productId &&
-                    item.variant?.id === variantId
-            );
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        const requestedVariantId = typeof variantId === 'number' ? variantId : undefined;
+        const existing = shoppingList.lineItems.find(
+            (lineItem) =>
+                lineItem.productId === productId &&
+                (lineItem.variantId ?? 1) === (requestedVariantId ?? 1),
+        );
 
-        if (existingLineItem) {
+        if (existing) {
             return NextResponse.json({
-                id: wishlist.id,
-                message:
-                    'Product already exists in wishlist',
-                lineItem:
-                existingLineItem,
+                id: shoppingList.id,
+                lineItem: existing,
+                alreadyExists: true,
             });
         }
 
-        const updateAction = {
-            action: 'addLineItem' as const,
-            productId,
-            ...(variantId
-                ? { variantId }
-                : {}),
-            quantity: 1,
-        };
-
-        const response =
-            await apiRoot
-                .withProjectKey({
-                    projectKey:
-                        process.env.CT_PROJECT_KEY!,
-                })
-                .shoppingLists()
-                .withId({
-                    ID: wishlistId,
-                })
-                .post({
-                    body: {
-                        version:
-                        wishlist.version,
-                        actions: [
-                            updateAction,
-                        ],
-                    },
-                })
-                .execute();
-
-        return NextResponse.json({
-            id: response.body.id,
-            version:
-            response.body.version,
-            message:
-                'Product added to wishlist',
-            lineItem:
-                response.body.lineItems[
-                response.body
-                    .lineItems.length - 1
-                    ],
-        });
-    } catch (error: any) {
-        console.error(
-            'Failed to add product to wishlist:',
-            error
+        const updatedList = await updateCustomerShoppingList(context, shoppingList, [
+            {
+                action: 'addLineItem',
+                productId,
+                ...(requestedVariantId && { variantId: requestedVariantId }),
+                quantity: Number(quantity),
+            },
+        ]);
+        const lineItem = updatedList.lineItems.find(
+            (item) =>
+                item.productId === productId &&
+                (item.variantId ?? 1) === (requestedVariantId ?? 1),
         );
 
+        return NextResponse.json({
+            id: updatedList.id,
+            lineItem,
+            alreadyExists: false,
+        });
+    } catch (error) {
+        console.error('Failed to add product to shopping list:', error);
         return NextResponse.json(
-            {
-                message:
-                    error?.body?.message ||
-                    error?.message ||
-                    'Failed to add product to wishlist',
-            },
-            { status: 500 }
+            { message: getErrorMessage(error, 'Failed to add product to shopping list') },
+            { status: getErrorStatus(error) },
         );
     }
 }
 
-
-
-
 export async function DELETE(
-    request: NextRequest,
-    {
-        params,
-    }: {
-        params: Promise<{
-            wishlistId: string;
-        }>;
-    }
+    _request: NextRequest,
+    { params }: RouteContext,
 ) {
     try {
-        const { wishlistId } = await params;
-
-        const customerId = await getSession();
-
-        if (!customerId) {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
             return NextResponse.json(
-                {
-                    message: 'Customer is not logged in',
-                },
-                { status: 401 }
+                { message: 'Customer is not logged in' },
+                { status: 401 },
             );
         }
 
-        // Get current wishlist first
-        const wishlistResponse = await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .get()
-            .execute();
+        const { wishlistId } = await params;
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        await deleteCustomerShoppingList(context, shoppingList);
 
-        const wishlist = wishlistResponse.body;
-
-        // Delete wishlist using current version
-        await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .delete({
-                queryArgs: {
-                    version: wishlist.version,
-                },
-            })
-            .execute();
-
-        return NextResponse.json({
-            success: true,
-            wishlistId,
-        });
-    } catch (error: any) {
-        console.error(
-            'Failed to delete wishlist:',
-            JSON.stringify(
-                error?.body ?? error,
-                null,
-                2
-            )
-        );
-
+        return NextResponse.json({ success: true, wishlistId });
+    } catch (error) {
+        console.error('Failed to delete shopping list:', error);
         return NextResponse.json(
-            {
-                message:
-                    error?.body?.message ??
-                    error?.message ??
-                    'Failed to delete wishlist',
-            },
-            {
-                status:
-                    error?.statusCode ?? 500,
-            }
+            { message: getErrorMessage(error, 'Failed to delete shopping list') },
+            { status: getErrorStatus(error) },
         );
     }
 }
-
 
 export async function PATCH(
     request: NextRequest,
-    {
-        params,
-    }: {
-        params: Promise<{
-            wishlistId: string;
-        }>;
-    }
+    { params }: RouteContext,
 ) {
     try {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
+            return NextResponse.json(
+                { message: 'Customer is not logged in' },
+                { status: 401 },
+            );
+        }
+
         const { wishlistId } = await params;
+        const body = await request.json() as { name?: unknown };
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
 
-        const customerId = await getSession();
-
-        if (!customerId) {
+        if (!name || name.length > 100) {
             return NextResponse.json(
-                {
-                    message: 'Customer is not logged in',
-                },
-                { status: 401 }
+                { message: 'Shopping list name must be between 1 and 100 characters' },
+                { status: 400 },
             );
         }
 
-        const { name } = await request.json();
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        const updatedList = await updateCustomerShoppingList(context, shoppingList, [
+            { action: 'changeName', name: { en: name } },
+        ]);
 
-        const trimmedName = name?.trim();
-
-        if (!trimmedName) {
-            return NextResponse.json(
-                {
-                    message: 'Wishlist name is required',
-                },
-                { status: 400 }
-            );
-        }
-
-        // Get current wishlist
-        const wishlistResponse = await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .get()
-            .execute();
-
-        const wishlist = wishlistResponse.body;
-
-        // Update wishlist name
-        const response = await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .post({
-                body: {
-                    version: wishlist.version,
-                    actions: [
-                        {
-                            action: 'changeName',
-                            name: {
-                                'en-US': trimmedName,
-                            },
-                        },
-                    ],
-                },
-            })
-            .execute();
-
-        return NextResponse.json({
-            success: true,
-            wishlist: response.body,
-        });
-    } catch (error: any) {
-        console.error(
-            'Failed to rename wishlist:',
-            JSON.stringify(
-                error?.body ?? error,
-                null,
-                2
-            )
-        );
-
+        return NextResponse.json({ success: true, wishlist: updatedList });
+    } catch (error) {
+        console.error('Failed to rename shopping list:', error);
         return NextResponse.json(
-            {
-                message:
-                    error?.body?.message ??
-                    error?.message ??
-                    'Failed to rename wishlist',
-            },
-            {
-                status:
-                    error?.statusCode ?? 500,
-            }
+            { message: getErrorMessage(error, 'Failed to rename shopping list') },
+            { status: getErrorStatus(error) },
         );
     }
 }

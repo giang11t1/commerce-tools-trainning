@@ -2,6 +2,7 @@
 
 import { useCart } from '@/context/CartContext';
 import PriceDisplay from '@/components/PriceDisplay';
+import CartLineItemPurchaseInfo from '@/components/CartLineItemPurchaseInfo';
 import {
     getCartDiscountAmount,
     getCartShippingDiscount,
@@ -63,6 +64,7 @@ export default function OrderSummary() {
                                     {itemName}
                                 </h4>
                                 <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                                <CartLineItemPurchaseInfo lineItem={item} />
                                 {item.taxRate && (
                                     <p className="text-[10px] text-blue-600">
                                         {translate('taxRateLabel')} ({item.taxRate.amount * 100}%)

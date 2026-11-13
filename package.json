@@ -3,10 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+      "dev": "concurrently -k -n next,email,studio \"npm:dev:next\" \"npm:dev:email\" \"npm:dev:studio\"",
+      "dev:next": "next dev",
+      "dev:email": "NODE_OPTIONS='--require ./scripts/register-server-only.cjs' tsx watch scripts/watch-email-jobs.ts",
+      "dev:studio": "prisma studio --port 5555",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:cart-pricing": "node --experimental-strip-types --test src/lib/cart-line-item.test.mjs",
+    "test:subscription-offers": "node --experimental-strip-types --test src/lib/subscription-offers.test.mjs",
+    "email:worker": "NODE_OPTIONS='--require ./scripts/register-server-only.cjs' tsx scripts/process-email-jobs.ts",
+    "email:watch": "NODE_OPTIONS='--require ./scripts/register-server-only.cjs' tsx scripts/watch-email-jobs.ts",
+      "newsletter:test": "NODE_OPTIONS='--require ./scripts/register-server-only.cjs' tsx scripts/test-newsletter-marketing.ts"
   },
   "dependencies": {
     "@adyen/adyen-web": "^6.44.0",
@@ -19,6 +27,11 @@
     "@commercetools/ts-client": "^5.0.3",
     "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
+    "@next/env": "^16.4.6",
+    "@next/third-parties": "^16.4.6",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^6.19.3",
+    "@sendgrid/mail": "^8.1.6",
     "@splidejs/react-splide": "^0.7.12",
     "@splidejs/splide": "^4.1.4",
     "dompurify": "^3.4.15",
@@ -50,10 +63,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-modal": "^3.16.3",
+    "concurrently": "^10.0.7",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "eslint-import-resolver-typescript": "^4.4.5",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

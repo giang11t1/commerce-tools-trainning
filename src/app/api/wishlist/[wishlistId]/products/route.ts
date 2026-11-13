@@ -1,263 +1,296 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiRoot } from '@/lib/commercetools';
-import { getSession } from '@/lib/auth';
+import {
+    getOwnedShoppingList,
+    getShoppingListCustomerContext,
+    ShoppingListAccessError,
+    updateCustomerShoppingList,
+} from '@/lib/shopping-lists';
+
+interface RouteContext {
+    params: Promise<{ wishlistId: string }>;
+}
+
+function getErrorStatus(error: unknown) {
+    if (error instanceof ShoppingListAccessError) {
+        return 403;
+    }
+
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+        const statusCode = error.statusCode;
+        if (typeof statusCode === 'number' && statusCode >= 400 && statusCode <= 599) {
+            return statusCode;
+        }
+    }
+
+    return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (error && typeof error === 'object' && 'body' in error) {
+        const body = error.body;
+        if (body && typeof body === 'object' && 'message' in body &&
+            typeof body.message === 'string') {
+            return body.message;
+        }
+    }
+
+    return error instanceof Error ? error.message : fallback;
+}
 
 export async function POST(
     request: NextRequest,
-    {
-        params,
-    }: {
-        params: Promise<{
-            wishlistId: string;
-        }>;
-    }
+    { params }: RouteContext,
 ) {
     try {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
+            return NextResponse.json(
+                { message: 'Customer is not logged in' },
+                { status: 401 },
+            );
+        }
+
         const { wishlistId } = await params;
+        const body = await request.json() as {
+            productId?: unknown;
+            variantId?: unknown;
+            quantity?: unknown;
+        };
+        const productId = typeof body.productId === 'string' ? body.productId : '';
+        const variantId = body.variantId;
+        const quantity = body.quantity ?? 1;
 
-        const customerId =
-            await getSession();
-
-        if (!customerId) {
+        if (
+            !productId ||
+            (variantId !== undefined &&
+                (!Number.isInteger(variantId) || Number(variantId) < 1)) ||
+            !Number.isInteger(quantity) ||
+            Number(quantity) < 1 ||
+            Number(quantity) > 999
+        ) {
             return NextResponse.json(
-                {
-                    message:
-                        'Customer is not logged in',
-                },
-                { status: 401 }
+                { message: 'A valid product, variant, and quantity are required' },
+                { status: 400 },
             );
         }
 
-        const {
-            productId,
-        } = await request.json();
-
-        if (!productId) {
-            return NextResponse.json(
-                {
-                    message:
-                        'Product ID is required',
-                },
-                { status: 400 }
-            );
-        }
-
-        const wishlistResponse =
-            await apiRoot
-                .withProjectKey({
-                    projectKey:
-                        process.env.CT_PROJECT_KEY!,
-                })
-                .shoppingLists()
-                .withId({
-                    ID: wishlistId,
-                })
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        const project = apiRoot.withProjectKey({
+            projectKey: process.env.CT_PROJECT_KEY!,
+        });
+        const productResponse = context.storeKey
+            ? await project
+                .inStoreKeyWithStoreKeyValue({ storeKey: context.storeKey })
+                .productProjections()
+                .withId({ ID: productId })
+                .get()
+                .execute()
+            : await project
+                .productProjections()
+                .withId({ ID: productId })
                 .get()
                 .execute();
-        const wishlist = wishlistResponse.body;
 
-        if (wishlist.customer?.id !== customerId) {
+        const product = productResponse.body;
+        const requestedVariantId = typeof variantId === 'number'
+            ? variantId
+            : product.masterVariant.id;
+        const variantExists = [
+            product.masterVariant,
+            ...product.variants,
+        ].some((variant) => variant.id === requestedVariantId);
+
+        if (!variantExists) {
             return NextResponse.json(
-                { message: 'Wishlist does not belong to customer' },
-                { status: 403 }
+                { message: 'Variant does not belong to this product' },
+                { status: 400 },
             );
         }
 
-        await apiRoot
-            .withProjectKey({ projectKey: process.env.CT_PROJECT_KEY! })
-            .productProjections()
-            .withId({ ID: productId })
-            .get()
-            .execute();
+        const existing = shoppingList.lineItems.find(
+            (lineItem) =>
+                lineItem.productId === productId &&
+                (lineItem.variantId ?? product.masterVariant.id) === requestedVariantId,
+        );
+        const legacyItem = (shoppingList.textLineItems ?? []).find(
+            (item) => item.key === `wishlist-product-${productId}`,
+        );
 
-        const textLineItemKey = `wishlist-product-${productId}`;
-        const alreadyExists =
-            wishlist.lineItems.some((item) => item.productId === productId) ||
-            (wishlist.textLineItems ?? []).some(
-                (item) => item.key === textLineItemKey
-            );
-
-        if (alreadyExists) {
-            return NextResponse.json({ success: true, alreadyExists: true });
+        if (existing || legacyItem) {
+            return NextResponse.json({
+                success: true,
+                alreadyExists: true,
+                lineItem: existing ?? legacyItem,
+            });
         }
 
-        const response =
-            await apiRoot
-                .withProjectKey({
-                    projectKey:
-                        process.env.CT_PROJECT_KEY!,
-                })
-                .shoppingLists()
-                .withId({
-                    ID: wishlistId,
-                })
-                .post({
-                    body: {
-                        version: wishlist.version,
-                        actions: [
-                            {
-                                action: 'addTextLineItem',
-                                key: textLineItemKey,
-                                name: { en: productId },
-                                quantity: 1,
-                            },
-                        ],
-                    },
-                })
-                .execute();
+        const updatedList = await updateCustomerShoppingList(context, shoppingList, [
+            {
+                action: 'addLineItem',
+                productId,
+                variantId: requestedVariantId,
+                quantity: Number(quantity),
+            },
+        ]);
+        const lineItem = updatedList.lineItems.find(
+            (item) =>
+                item.productId === productId &&
+            (item.variantId ?? product.masterVariant.id) === requestedVariantId,
+        );
 
         return NextResponse.json({
             success: true,
-            wishlist: response.body,
+            alreadyExists: false,
+            lineItem,
         });
-    } catch (error: any) {
-        console.error(
-            'Failed to add product to wishlist:',
-            JSON.stringify(
-                error?.body ?? error,
-                null,
-                2
-            )
-        );
-
+    } catch (error) {
+        console.error('Failed to add product to shopping list:', error);
         return NextResponse.json(
-            {
-                message:
-                    error?.body?.message ??
-                    error?.message ??
-                    'Failed to add product to wishlist',
-            },
-            {
-                status:
-                    error?.statusCode ?? 500,
-            }
+            { message: getErrorMessage(error, 'Failed to add product to shopping list') },
+            { status: getErrorStatus(error) },
         );
     }
 }
 
-
-export async function DELETE(
+export async function PATCH(
     request: NextRequest,
-    {
-        params,
-    }: {
-        params: Promise<{
-            wishlistId: string;
-        }>;
-    }
+    { params }: RouteContext,
 ) {
     try {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
+            return NextResponse.json(
+                { message: 'Customer is not logged in' },
+                { status: 401 },
+            );
+        }
+
         const { wishlistId } = await params;
+        const body = await request.json() as {
+            lineItemId?: unknown;
+            quantity?: unknown;
+        };
+        const lineItemId = typeof body.lineItemId === 'string' ? body.lineItemId : '';
 
-        const customerId = await getSession();
-
-        if (!customerId) {
+        if (
+            !lineItemId ||
+            !Number.isInteger(body.quantity) ||
+            Number(body.quantity) < 1 ||
+            Number(body.quantity) > 999
+        ) {
             return NextResponse.json(
-                {
-                    message: 'Customer is not logged in',
-                },
-                { status: 401 }
+                { message: 'A valid line item and quantity are required' },
+                { status: 400 },
             );
         }
 
-        const { lineItemId, productId } = await request.json();
-
-        if (!lineItemId && !productId) {
-            return NextResponse.json(
-                {
-                    message: 'Line item ID is required',
-                },
-                { status: 400 }
-            );
-        }
-
-        const wishlistResponse = await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .get()
-            .execute();
-
-        const wishlist = wishlistResponse.body;
-
-        if (wishlist.customer?.id !== customerId) {
-            return NextResponse.json(
-                { message: 'Wishlist does not belong to customer' },
-                { status: 403 }
-            );
-        }
-
-        const textLineItem = (wishlist.textLineItems ?? []).find(
-            (item) => item.key === `wishlist-product-${productId}`
-        );
-        const lineItem = wishlist.lineItems.find(
-            (item) => item.id === lineItemId || item.productId === productId
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        const lineItem = shoppingList.lineItems.find((item) => item.id === lineItemId);
+        const textLineItem = (shoppingList.textLineItems ?? []).find(
+            (item) => item.id === lineItemId,
         );
 
         if (!lineItem && !textLineItem) {
             return NextResponse.json(
-                {
-                    message: 'Wishlist item not found',
-                    lineItemId,
-                },
-                { status: 404 }
+                { message: 'Shopping list item not found' },
+                { status: 404 },
             );
         }
 
-        const response = await apiRoot
-            .withProjectKey({
-                projectKey: process.env.CT_PROJECT_KEY!,
-            })
-            .shoppingLists()
-            .withId({
-                ID: wishlistId,
-            })
-            .post({
-                body: {
-                    version: wishlist.version,
-                    actions: [
-                        textLineItem
-                            ? {
-                                action: 'removeTextLineItem',
-                                textLineItemId: textLineItem.id,
-                            }
-                            : {
-                                action: 'removeLineItem',
-                                lineItemId: lineItem!.id,
-                            }],
-                },
-            })
-            .execute();
-
-        return NextResponse.json({
-            success: true,
-            wishlist: response.body,
-        });
-    } catch (error: any) {
-        console.error(
-            'Failed to remove product from wishlist:',
-            JSON.stringify(
-                error?.body ?? error,
-                null,
-                2
-            )
+        const action = lineItem
+            ? {
+                action: 'changeLineItemQuantity' as const,
+                lineItemId,
+                quantity: Number(body.quantity),
+            }
+            : {
+                action: 'changeTextLineItemQuantity' as const,
+                textLineItemId: lineItemId,
+                quantity: Number(body.quantity),
+            };
+        const updatedList = await updateCustomerShoppingList(
+            context,
+            shoppingList,
+            [action],
         );
 
+        return NextResponse.json({ success: true, wishlist: updatedList });
+    } catch (error) {
+        console.error('Failed to update shopping list item quantity:', error);
         return NextResponse.json(
-            {
-                message:
-                    error?.body?.message ??
-                    error?.message ??
-                    'Failed to remove product from wishlist',
-            },
-            {
-                status:
-                    error?.statusCode ?? 500,
+            { message: getErrorMessage(error, 'Failed to update item quantity') },
+            { status: getErrorStatus(error) },
+        );
+    }
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: RouteContext,
+) {
+    try {
+        const context = await getShoppingListCustomerContext();
+        if (!context) {
+            return NextResponse.json(
+                { message: 'Customer is not logged in' },
+                { status: 401 },
+            );
+        }
+
+        const { wishlistId } = await params;
+        const body = await request.json() as {
+            lineItemId?: unknown;
+            productId?: unknown;
+        };
+        const lineItemId = typeof body.lineItemId === 'string' ? body.lineItemId : '';
+        const productId = typeof body.productId === 'string' ? body.productId : '';
+
+        if (!lineItemId && !productId) {
+            return NextResponse.json(
+                { message: 'A shopping list item is required' },
+                { status: 400 },
+            );
+        }
+
+        const shoppingList = await getOwnedShoppingList(context, wishlistId);
+        const lineItem = shoppingList.lineItems.find(
+            (item) => item.id === lineItemId || item.productId === productId,
+        );
+        const textLineItem = (shoppingList.textLineItems ?? []).find(
+            (item) =>
+                item.id === lineItemId ||
+                item.key === `wishlist-product-${productId}`,
+        );
+
+        if (!lineItem && !textLineItem) {
+            return NextResponse.json(
+                { message: 'Shopping list item not found' },
+                { status: 404 },
+            );
+        }
+
+        const action = lineItem
+            ? {
+                action: 'removeLineItem' as const,
+                lineItemId: lineItem.id,
             }
+            : {
+                action: 'removeTextLineItem' as const,
+                textLineItemId: textLineItem!.id,
+            };
+        const updatedList = await updateCustomerShoppingList(
+            context,
+            shoppingList,
+            [action],
+        );
+
+        return NextResponse.json({ success: true, wishlist: updatedList });
+    } catch (error) {
+        console.error('Failed to remove product from shopping list:', error);
+        return NextResponse.json(
+            { message: getErrorMessage(error, 'Failed to remove product from shopping list') },
+            { status: getErrorStatus(error) },
         );
     }
 }

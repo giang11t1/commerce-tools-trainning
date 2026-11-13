@@ -7,23 +7,26 @@ import Dropdown from '@/components/commercetools-ui/atoms/dropdown';
 import Link from '@/components/commercetools-ui/atoms/link';
 import AccountSidebarItem from './AccountSidebarItem';
 import { usePathname } from '../../i18n/navigation';
+import { useTranslations } from 'use-intl';
 
 interface NavItem {
     label: string;
     href: string;
 }
 
-const navItems: NavItem[] = [
-    { label: 'Dashboard', href: '/account' },
-    { label: 'My Orders', href: '/account/orders' },
-    { label: 'My Quotes', href: '/account/quotes' },
-    { label: 'Company', href: '/account/company' },
-    { label: 'My Wishlist', href: '/account/wishlist' },
-    { label: 'Addresses', href: '/account/addresses' },
-];
-
 export default function AccountSidebar() {
     const pathname = usePathname();
+    const translate = useTranslations('shoppingLists');
+    const subscriptionTranslate = useTranslations('subscriptions');
+    const navItems: NavItem[] = [
+        { label: 'Dashboard', href: '/account' },
+        { label: 'My Orders', href: '/account/orders' },
+        { label: 'My Quotes', href: '/account/quotes' },
+        { label: 'Company', href: '/account/company' },
+        { label: translate('title'), href: '/account/shopping-lists' },
+        { label: subscriptionTranslate('title'), href: '/account/subscriptions' },
+        { label: 'Addresses', href: '/account/addresses' },
+    ];
 
     const activeItem =
         navItems.find((item) => pathname === item.href) ?? navItems[0];

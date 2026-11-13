@@ -5,6 +5,7 @@ import {
     type MockOrderInput,
 } from '@/lib/mock-orders';
 import { getMockOrderFailure } from '@/lib/mock-order-utils';
+import { enqueueOrderConfirmation } from '@/lib/email/email-jobs';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -120,6 +121,22 @@ export async function POST(request: Request) {
     try {
         const result = await createMockOrderFromCurrentCart(input);
 
+        try {
+            const emailJob = await enqueueOrderConfirmation(
+                result.order.id
+            );
+
+            console.info('[SendGrid Order Confirmation]', {
+                orderId: result.order.id,
+                queued: emailJob.queued,
+            });
+        } catch (error) {
+            console.error(
+                '[SendGrid] Failed to create email job:',
+                error
+            );
+        }
+
         return NextResponse.json(
             { orderId: result.order.id, created: result.created },
             { headers: { 'Cache-Control': 'no-store' } },
@@ -151,4 +168,7 @@ export async function POST(request: Request) {
             { status: failure.status, headers: { 'Cache-Control': 'no-store' } },
         );
     }
+
+
+
 }
