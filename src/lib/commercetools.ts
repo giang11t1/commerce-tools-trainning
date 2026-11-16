@@ -44,17 +44,16 @@ export const client = new ClientBuilder()
 
 export const apiRoot = createApiBuilderFromCtpClient(client);
 
-// Business unit (As Associate) requests run on a separate client that doesn't pin scopes,
-// so the token carries whatever business-unit scopes the API client was granted. If they
-// are missing, only the company pages fail instead of every request on apiRoot.
+// As Associate and approval endpoints use a separate client so their API scopes do not
+// widen the pinned scopes requested by apiRoot.
 const associateAuthMiddlewareOptions: AuthMiddlewareOptions = {
     ...authMiddlewareOptions,
     scopes: undefined,
 };
 
-export const associateApiRoot = createApiBuilderFromCtpClient(
-    new ClientBuilder()
-        .withClientCredentialsFlow(associateAuthMiddlewareOptions)
-        .withHttpMiddleware(httpMiddlewareOptions)
-        .build()
-);
+export const associateClient = new ClientBuilder()
+    .withClientCredentialsFlow(associateAuthMiddlewareOptions)
+    .withHttpMiddleware(httpMiddlewareOptions)
+    .build();
+
+export const associateApiRoot = createApiBuilderFromCtpClient(associateClient);

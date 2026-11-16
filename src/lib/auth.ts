@@ -95,6 +95,10 @@ export async function login(formData: any) {
 
     const cookieStore = await cookies();
 
+    if (cookieStore.get(SESSION_COOKIE_NAME)?.value !== result.customer.id) {
+        if (cookieStore.has('ct_business_unit_key')) cookieStore.delete('cartId');
+        cookieStore.delete('ct_business_unit_key');
+    }
     cookieStore.set(SESSION_COOKIE_NAME, result.customer.id, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -132,9 +136,11 @@ export async function login(formData: any) {
 
 export async function logout() {
     const cookieStore = await cookies();
+    if (cookieStore.has('ct_business_unit_key')) cookieStore.delete('cartId');
     cookieStore.delete(SESSION_COOKIE_NAME);
     cookieStore.delete(ACCESS_TOKEN_COOKIE_NAME);
     cookieStore.delete(STORE_KEY_COOKIE_NAME);
+    cookieStore.delete('ct_business_unit_key');
 }
 
 export async function getSession() {

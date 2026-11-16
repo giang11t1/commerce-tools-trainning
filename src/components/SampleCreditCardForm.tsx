@@ -6,12 +6,19 @@ interface SampleCreditCardFormProps {
     isSubmitting?: boolean;
     error?: string;
     onPlaceOrder: () => Promise<void>;
+    // Overrides used when paying an existing Order instead of creating one.
+    labels?: {
+        description: string;
+        submit: string;
+        submitting: string;
+    };
 }
 
 export default function SampleCreditCardForm({
     isSubmitting = false,
     error,
     onPlaceOrder,
+    labels,
 }: SampleCreditCardFormProps) {
     return (
         <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-6">
@@ -19,8 +26,12 @@ export default function SampleCreditCardForm({
                 Mock Payment (development only)
             </h3>
             <p className="mb-4 text-sm text-gray-700">
-                This creates an unpaid test order only. No payment is processed.
-                Do not enter card details.
+                {labels?.description ?? (
+                    <>
+                        This creates an unpaid test order only. No payment is processed.
+                        Do not enter card details.
+                    </>
+                )}
             </p>
 
             {error ? <p className="mb-4 text-sm text-red-700" role="alert">{error}</p> : null}
@@ -34,7 +45,9 @@ export default function SampleCreditCardForm({
                         : 'bg-green-700 hover:bg-green-800'
                 }`}
             >
-                {isSubmitting ? 'Placing Test Order...' : 'Place Unpaid Test Order'}
+                {isSubmitting
+                    ? labels?.submitting ?? 'Placing Test Order...'
+                    : labels?.submit ?? 'Place Unpaid Test Order'}
             </button>
         </div>
     );

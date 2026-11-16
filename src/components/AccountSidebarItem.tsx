@@ -1,20 +1,17 @@
 'use client';
 
 import Link from '@/components/commercetools-ui/atoms/link';
-import { usePathname } from 'next/navigation';
 
 interface NavItem {
     label: string;
     href: string;
 }
 
-export default function AccountSidebarItem({ item }: { item: NavItem }) {
-    const pathname = usePathname();
-    const isActive = pathname === item.href;
-
+export default function AccountSidebarItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
     return (
         <Link
             link={item.href}
+            aria-current={isActive ? 'page' : undefined}
             className={`px-4 py-3 text-sm font-medium border-l-4 transition-colors ${
                 isActive
                     ? 'text-blue-600 bg-blue-50 border-blue-600'

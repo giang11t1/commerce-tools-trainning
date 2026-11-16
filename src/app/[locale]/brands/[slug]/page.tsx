@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { getBrands, getProductsByBrand } from '@/lib/brands';
 import { getProductRating } from '@/lib/reviews';
 import { getInventoryMapBySkus } from '@/lib/inventory';
+import { getInventorySupplyContext } from '@/lib/cart';
 import { getCommercetoolsErrorDetails } from '@/lib/category-product-search';
 import BrandLogo from '@/components/BrandLogo';
 import CategorySidebar from '@/components/CategorySidebar';
@@ -79,7 +80,7 @@ export default async function BrandDetailPage({
     const ratings = await Promise.all(products.map((product) => getProductRating(product.id)));
     const skus = products.flatMap((product) => [product.masterVariant, ...(product.variants ?? [])])
         .map((variant) => variant.sku).filter((sku): sku is string => Boolean(sku));
-    const inventory = await getInventoryMapBySkus(skus);
+    const inventory = await getInventoryMapBySkus(skus, await getInventorySupplyContext());
     const productsWithInventory = products.map((product, index) => ({
         product,
         rating: ratings[index],

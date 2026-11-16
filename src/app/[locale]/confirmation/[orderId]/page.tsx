@@ -4,6 +4,8 @@ import PriceDisplay from '@/components/PriceDisplay';
 import { getCartShippingPrice, getCartTaxAmount, getSubtotalMoney } from '@/lib/checkout-utils';
 import { getOrderById } from '@/lib/checkout';
 import { getTranslations } from 'next-intl/server';
+import { getBusinessOrderFlow } from '@/lib/b2b-checkout';
+import OrderPaymentStatus from '@/components/account/OrderPaymentStatus';
 
 interface ConfirmationPageProps {
     params: Promise<{ locale: string; orderId: string }>;
@@ -29,14 +31,27 @@ export default async function ConfirmationPage({
     const discount = order.discountOnTotalPrice?.discountedAmount;
     const shipping = getCartShippingPrice(order);
     const tax = getCartTaxAmount({ taxedPrice: order.taxedPrice });
+    const approval = order.businessUnit
+        ? await getBusinessOrderFlow(order.businessUnit.key, order.id)
+        : undefined;
+    const flow = approval?.success ? approval.flow : undefined;
+    const paymentTranslate = await getTranslations({ locale, namespace: 'orderMockPayment' });
+    const approvalLookupFailed = Boolean(approval && !approval.success);
+    // Orders with an Approval Flow were submitted for approval and are not confirmed until paid.
+    const awaitingApproval = Boolean(flow) && order.paymentState !== 'Paid';
 
     return (
         <div className="mx-auto max-w-4xl py-12 px-4 sm:px-6 lg:px-8">
             <header className="mb-10 text-center">
                 <h1 className="mb-3 text-3xl font-bold text-blue-600">
-                    {translate('orderConfirmed')}
+                    {translate(awaitingApproval ? 'approvalSubmittedTitle' :
+                        approvalLookupFailed ? 'businessOrderSubmitted' : 'orderConfirmed')}
                 </h1>
-                <p className="text-blue-600">{translate('orderSuccess')}</p>
+                <p className="text-blue-600">
+                    {flow && order.paymentState === 'Paid' ? paymentTranslate('paid') :
+                        translate(awaitingApproval ? 'approvalSubmittedText' :
+                            approvalLookupFailed ? 'businessApprovalUnknown' : 'orderSuccess')}
+                </p>
             </header>
 
             <section className="mb-6 rounded-lg border border-gray-200 bg-white p-6">
@@ -58,6 +73,20 @@ export default async function ConfirmationPage({
                         </dd>
                     </div>
                 </dl>
+                {order.businessUnit && (flow || approvalLookupFailed) && (
+                    <div className="mt-4 space-y-2 border-t border-line pt-4">
+                        <p className="font-medium">{translate('businessOrderStatus')}</p>
+                        <p>{translate(flow?.status === 'Pending' ? 'businessApprovalPending' :
+                            flow?.status === 'Approved' ? 'businessApprovalApproved' :
+                            flow?.status === 'Rejected' ? 'businessApprovalRejected' : 'businessApprovalUnknown')}</p>
+                        {approval && !approval.success && <p role="alert" className="text-danger">{approval.error}</p>}
+                        {flow && <p className="break-all text-sm">{flow.id}</p>}
+                        <Link link={`/account/approval-flows?unit=${encodeURIComponent(order.businessUnit.key)}`} className="text-brand underline">
+                            {translate('businessViewFlows')}
+                        </Link>
+                        {awaitingApproval && <OrderPaymentStatus orderId={order.id} />}
+                    </div>
+                )}
             </section>
 
             <section className="mb-6 rounded-lg border border-gray-200 bg-white p-6">

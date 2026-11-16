@@ -18,18 +18,23 @@ export default function AccountSidebar() {
     const pathname = usePathname();
     const translate = useTranslations('shoppingLists');
     const subscriptionTranslate = useTranslations('subscriptions');
+    const approvalTranslate = useTranslations('approvalRules');
     const navItems: NavItem[] = [
         { label: 'Dashboard', href: '/account' },
         { label: 'My Orders', href: '/account/orders' },
         { label: 'My Quotes', href: '/account/quotes' },
         { label: 'Company', href: '/account/company' },
+        { label: approvalTranslate('rulesTitle'), href: '/account/approval-rules' },
+        { label: approvalTranslate('flowsTitle'), href: '/account/approval-flows' },
         { label: translate('title'), href: '/account/shopping-lists' },
         { label: subscriptionTranslate('title'), href: '/account/subscriptions' },
         { label: 'Addresses', href: '/account/addresses' },
     ];
 
-    const activeItem =
-        navItems.find((item) => pathname === item.href) ?? navItems[0];
+    const activeItem = navItems
+        .filter((item) => pathname === item.href ||
+            (item.href !== '/account' && pathname.startsWith(`${item.href}/`)))
+        .sort((a, b) => b.href.length - a.href.length)[0];
 
     return (
         <div className="rounded-lg border border-gray-100 bg-white shadow-sm">
@@ -41,7 +46,7 @@ export default function AccountSidebar() {
                             type="button"
                             className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-gray-700"
                         >
-                            <span>{activeItem.label}</span>
+                            <span>{(activeItem ?? navItems[0]).label}</span>
 
                             <ChevronDownIcon className="h-5 w-5" />
                         </button>
@@ -55,12 +60,13 @@ export default function AccountSidebar() {
                     }
                 >
                     {navItems.map((item) => {
-                        const isActive = pathname === item.href;
+                        const isActive = activeItem === item;
 
                         return (
                             <MenuItem key={item.href}>
                                 <Link
                                     link={item.href}
+                                    aria-current={isActive ? 'page' : undefined}
                                     className={`block px-4 py-3 text-sm font-medium transition-colors ${
                                         isActive
                                             ? 'bg-blue-50 text-blue-600'
@@ -81,6 +87,7 @@ export default function AccountSidebar() {
                     <AccountSidebarItem
                         key={item.href}
                         item={item}
+                        isActive={activeItem === item}
                     />
                 ))}
             </nav>

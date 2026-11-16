@@ -247,7 +247,7 @@ export function getCartShippingDiscount(
 }
 
 export function getTaxBasis(
-    cart: Pick<Cart, 'lineItems' | 'taxMode'>,
+    cart: Pick<Cart, 'lineItems'> & { taxMode?: Cart['taxMode'] },
 ): TaxBasis {
     if (cart.taxMode === 'Disabled') return 'unknown';
 

@@ -13,9 +13,14 @@ import {
     getTaxBasis,
 } from '@/lib/checkout-utils';
 import { useLocale, useTranslations } from 'use-intl';
+import type { Cart, Order } from '@commercetools/platform-sdk';
 
-export default function OrderSummary() {
-    const { cart } = useCart();
+type SummaryFields = 'lineItems' | 'taxMode' | 'taxedPrice' | 'discountOnTotalPrice' | 'shippingInfo' | 'totalPrice';
+
+// Defaults to the active cart; an existing Order is shown with its own stored totals.
+export default function OrderSummary({ source }: { source?: Pick<Cart, SummaryFields> | Pick<Order, SummaryFields> }) {
+    const { cart: activeCart } = useCart();
+    const cart = source ?? activeCart;
     const locale = useLocale();
     const translate = useTranslations('checkout');
 

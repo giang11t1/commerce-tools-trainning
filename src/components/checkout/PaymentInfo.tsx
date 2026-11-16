@@ -18,6 +18,9 @@ interface PaymentInfoProps {
     isSubmitting: boolean;
     mockOrderError: string;
     onMockOrderSubmit: () => Promise<void>;
+    mockPaymentLabels?: React.ComponentProps<typeof SampleCreditCardForm>['labels'];
+    // Existing Orders have fixed addresses, so the step has no way back to shipping.
+    showBackToShipping?: boolean;
 }
 
 export const PaymentInfo: React.FC<PaymentInfoProps> = ({
@@ -33,6 +36,8 @@ export const PaymentInfo: React.FC<PaymentInfoProps> = ({
     isSubmitting,
     mockOrderError,
     onMockOrderSubmit,
+    mockPaymentLabels,
+    showBackToShipping = true,
 }) => {
     return (
         <section>
@@ -105,6 +110,7 @@ export const PaymentInfo: React.FC<PaymentInfoProps> = ({
                                             isSubmitting={isSubmitting}
                                             error={mockOrderError}
                                             onPlaceOrder={onMockOrderSubmit}
+                                            labels={mockPaymentLabels}
                                         />
                                     )}
 
@@ -128,7 +134,7 @@ export const PaymentInfo: React.FC<PaymentInfoProps> = ({
             )}
 
             <div className="flex gap-2 mt-8">
-                {currentStep === 2 && (
+                {currentStep === 2 && showBackToShipping && (
                     <button
                         type="button"
                         onClick={() => setCurrentStep(1)}

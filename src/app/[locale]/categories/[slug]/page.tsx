@@ -10,6 +10,7 @@ import CategoryProductList from "@/components/CategoryProductList";
 import MobileFacets from '@/components/commercetools-ui/organisms/product/product-list/components/mobile-facets';
 import {getProductRating} from "@/lib/reviews";
 import {getInventoryMapBySkus} from "@/lib/inventory";
+import { getInventorySupplyContext } from "@/lib/cart";
 import { getTranslations } from 'next-intl/server';
 import { formatMarketPrice, getCommerceMarket } from '@/lib/commerce-market';
 
@@ -100,7 +101,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         .filter(Boolean) as string[];
 
     const inventoryMap =
-        await getInventoryMapBySkus(skus);
+        await getInventoryMapBySkus(skus, await getInventorySupplyContext());
 
     const productsWithInventory = productsWithRatings.map(
         ({ product, rating }) => ({

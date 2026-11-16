@@ -20,17 +20,28 @@ import { useLocale, useTranslations } from 'use-intl';
 import type { CheckoutShippingOption } from '@/components/checkout/types';
 import { getCommerceMarket } from '@/lib/commerce-market';
 import { preserveAvailableShippingMethod } from '@/lib/checkout-utils';
+import {
+    evaluateBusinessCartApproval,
+    selectCheckoutBusinessUnit,
+    submitBusinessOrderForApproval,
+} from '@/lib/b2b-checkout';
+
+type ApprovalStatus = 'loading' | 'approval-required' | 'no-approval-required' | 'error';
 
 interface CheckoutClientProps {
     shippingAddress?: Address | null;
     billingAddress?: Address | null;
     customerEmail?: string | null;
+    businessUnits: { key: string; name: string }[];
+    businessUnitError?: string;
 }
 
 export default function CheckoutClient({
     shippingAddress,
     billingAddress,
     customerEmail,
+    businessUnits,
+    businessUnitError,
 }: CheckoutClientProps) {
     const { clearCart, replaceCart, marketSyncError, cart } = useCart();
     const locale = useLocale();
@@ -51,13 +62,24 @@ export default function CheckoutClient({
     const selectionRequestId = useRef(0);
     const componentMounted = useRef(true);
     const translate = useTranslations('checkout');
+    const businessCheckout = Boolean(businessUnits.length || businessUnitError || cart?.businessUnit);
+    const [selectedUnitKey, setSelectedUnitKey] = useState('');
+    const [businessError, setBusinessError] = useState('');
+    const [businessBusy, setBusinessBusy] = useState(false);
+    const businessRequestStarted = useRef(false);
+    const [approval, setApproval] = useState<{ key: string; status: ApprovalStatus; error?: string } | null>(null);
+    const [approvalAttempt, setApprovalAttempt] = useState(0);
+    // Business Unit selection alone never decides the payment UI; commercetools Approval Rules do.
+    const approvalKey = cart?.businessUnit && currentStep === 2 ? `${cart.id}:${cart.version}` : '';
+    const approvalStatus: ApprovalStatus = approval && approval.key === approvalKey ? approval.status : 'loading';
+    const paymentBlocked = businessCheckout && (!cart?.businessUnit || approvalStatus !== 'no-approval-required');
 
     const { formData, setFormData, handleInputChange } =
         useCheckoutForm(shippingAddress, billingAddress, customerEmail);
     const { paymentMethods, isLoadingPayments } =
         usePaymentMethods(setFormData);
     const { adyenSession, adyenClientKey, error: adyenSessionError } = useAdyenSession(
-        currentStep === 2 &&
+        !paymentBlocked && currentStep === 2 &&
             !!cart &&
             !isLoadingPayments &&
             formData.paymentMethod !== 'credit_card_sample',
@@ -76,6 +98,7 @@ export default function CheckoutClient({
         hasCart: !!cart,
         cart,
         replaceCart,
+        paymentBlocked,
     });
 
     const lineItems = cart?.lineItems ?? [];
@@ -175,6 +198,26 @@ export default function CheckoutClient({
     ]);
 
     useEffect(() => {
+        if (!approvalKey || !activeCartId) return;
+        let cancelled = false;
+        evaluateBusinessCartApproval(activeCartId)
+            .catch(() => ({ success: false as const, error: translate('approvalCheckFailed') }))
+            .then((result) => {
+                if (cancelled) return;
+                if (!result.success) {
+                    setApproval({ key: approvalKey, status: 'error', error: result.error });
+                    return;
+                }
+                const evaluatedKey = `${result.cart.id}:${result.cart.version}`;
+                if (evaluatedKey !== approvalKey) replaceCart(result.cart);
+                setApproval({ key: evaluatedKey, status: result.status });
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeCartId, approvalAttempt, approvalKey, replaceCart, translate]);
+
+    useEffect(() => {
         if (!cart && !paymentCompleted) router.replace('/cart');
     }, [cart, paymentCompleted, router]);
 
@@ -256,6 +299,10 @@ export default function CheckoutClient({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (businessCheckout && (!cart?.businessUnit || businessUnitError)) {
+            setBusinessError(translate('businessUnitRequired'));
+            return;
+        }
 
         if (currentStep === 1) {
             setCheckoutAddressError('');
@@ -284,13 +331,35 @@ export default function CheckoutClient({
             return;
         }
 
-        if (formData.paymentMethod !== 'credit_card_sample') {
+        if (paymentBlocked) {
+            if (!cart || approvalStatus !== 'approval-required' || businessRequestStarted.current) return;
+            businessRequestStarted.current = true;
+            setBusinessBusy(true);
+            setBusinessError('');
+            try {
+                const result = await submitBusinessOrderForApproval(cart.id, cart.version);
+                if (!result.success) throw new Error(result.error);
+                setPaymentCompleted(true);
+                clearCart();
+                for (const error of clearStoredCartIds([
+                    () => window.localStorage,
+                    () => window.sessionStorage,
+                ])) {
+                    console.error('Failed to clear a stored cart identifier:', error);
+                }
+                router.replace(`/confirmation/${encodeURIComponent(result.orderId)}`);
+            } catch (error) {
+                setBusinessError(error instanceof Error ? error.message : translate('businessSubmitError'));
+                businessRequestStarted.current = false;
+                setBusinessBusy(false);
+            }
+        } else if (formData.paymentMethod !== 'credit_card_sample') {
             await ensurePaymentFlowInitialized();
         }
     };
 
     const handleMockOrder = async () => {
-        if (mockOrderRequestStarted.current) return;
+        if (paymentBlocked || mockOrderRequestStarted.current) return;
 
         mockOrderRequestStarted.current = true;
         setIsPlacingMockOrder(true);
@@ -405,6 +474,53 @@ export default function CheckoutClient({
                 className="grid grid-cols-1 lg:grid-cols-3 gap-12"
             >
                 <div className="space-y-10 lg:col-span-2">
+                    {businessCheckout && (
+                        <section className="space-y-3 rounded-lg border border-line bg-surface p-5">
+                            <h2 className="text-xl font-semibold text-ink">{translate('businessUnit')}</h2>
+                            <p className="text-sm text-ink-muted">{translate('businessApprovalNotice')}</p>
+                            <label className="block text-sm">
+                                {translate('businessUnit')}
+                                <select
+                                    value={selectedUnitKey || cart.businessUnit?.key || ''}
+                                    disabled={businessBusy || currentStep !== 1}
+                                    onChange={(event) => setSelectedUnitKey(event.target.value)}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                                >
+                                    <option value="">{translate('businessUnitRequired')}</option>
+                                    {businessUnits.map((unit) => <option key={unit.key} value={unit.key}>{unit.name}</option>)}
+                                </select>
+                            </label>
+                            <button
+                                type="button"
+                                disabled={businessBusy || currentStep !== 1 || !(selectedUnitKey || cart.businessUnit?.key)}
+                                onClick={async () => {
+                                    if (businessRequestStarted.current) return;
+                                    businessRequestStarted.current = true;
+                                    setBusinessBusy(true);
+                                    setBusinessError('');
+                                    try {
+                                        const result = await selectCheckoutBusinessUnit(selectedUnitKey || cart.businessUnit?.key || '');
+                                        if (!result.success) throw new Error(result.error);
+                                        replaceCart(result.cart);
+                                        loadedAddressKey.current = '';
+                                        setHasLoadedShippingMethods(false);
+                                        router.refresh();
+                                    } catch (error) {
+                                        setBusinessError(error instanceof Error ? error.message : translate('businessSubmitError'));
+                                    } finally {
+                                        businessRequestStarted.current = false;
+                                        setBusinessBusy(false);
+                                    }
+                                }}
+                                className="rounded-md bg-brand px-4 py-2 text-brand-contrast disabled:opacity-50"
+                            >
+                                {translate(businessBusy ? 'businessSaving' : 'businessUseUnit')}
+                            </button>
+                            {(businessUnitError || businessError) && (
+                                <p role="alert" className="text-sm text-danger">{businessUnitError || businessError}</p>
+                            )}
+                        </section>
+                    )}
                     {checkoutAddressError && (
                         <p className="rounded border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
                             {checkoutAddressError}
@@ -447,7 +563,7 @@ export default function CheckoutClient({
                                 }
                             />
 
-                            {currentStep === 2 && (
+                            {currentStep === 2 && !paymentBlocked && (
                                 <div
                                     ref={paymentElementRef}
                                     data-ctc
@@ -455,7 +571,44 @@ export default function CheckoutClient({
                                 />
                             )}
 
-                            <PaymentInfo
+                            {paymentBlocked ? (
+                                <section className="space-y-4" aria-live="polite">
+                                    {!cart.businessUnit ? (
+                                        <p role="alert" className="text-danger">{translate('businessUnitRequired')}</p>
+                                    ) : approvalStatus === 'loading' ? (
+                                        <p role="status" className="text-ink-muted">{translate('approvalChecking')}</p>
+                                    ) : approvalStatus === 'error' ? (
+                                        <div role="alert" className="space-y-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                                            <p>{translate('approvalCheckFailed')}</p>
+                                            {approval?.error && <p className="text-sm">{approval.error}</p>}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setApproval(null);
+                                                    setApprovalAttempt((attempt) => attempt + 1);
+                                                }}
+                                                className="rounded-md border border-red-300 bg-white px-3 py-1 text-sm"
+                                            >
+                                                {translate('approvalRetry')}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-ink-muted">{translate('approvalRequired')}</p>
+                                    )}
+                                    <div className="flex gap-3">
+                                        <button type="button" disabled={businessBusy} onClick={() => setCurrentStep(1)} className="rounded-md border border-line px-4 py-2">
+                                            {translate('businessBack')}
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={businessBusy || Boolean(businessUnitError) || approvalStatus !== 'approval-required'}
+                                            className="rounded-md bg-brand px-4 py-2 text-brand-contrast disabled:opacity-50"
+                                        >
+                                            {translate(businessBusy ? 'businessSaving' : approvalStatus === 'approval-required' ? 'submitForApproval' : 'placeOrder')}
+                                        </button>
+                                    </div>
+                                </section>
+                            ) : <PaymentInfo
                                 isLoadingPayments={isLoadingPayments}
                                 paymentMethods={paymentMethods}
                                 formData={formData}
@@ -468,7 +621,7 @@ export default function CheckoutClient({
                                 currentStep={currentStep}
                                 setCurrentStep={setCurrentStep}
                                 isSubmitting={isSubmitting || isPlacingMockOrder}
-                            />
+                            />}
                         </>
                     )}
                 </div>

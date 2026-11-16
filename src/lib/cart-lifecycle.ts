@@ -3,6 +3,7 @@ import type { Cart } from '@commercetools/platform-sdk';
 type CartSessionContext = {
     customerId?: string;
     storeKey?: string;
+    businessUnitKey?: string;
 };
 
 export function isCommercetoolsNotFound(error: unknown): boolean {
@@ -36,6 +37,7 @@ export function isUsableCart(
 ): boolean {
     return (
         isReadableCart(cart, context.customerId) &&
+        cart.businessUnit?.key === context.businessUnitKey &&
         (!context.storeKey || cart.store?.key === context.storeKey)
     );
 }

@@ -5,7 +5,7 @@ import ProductDetails from './ProductDetails';
 import ProductSlider from "@/components/ProductSlider";
 import {getProductRating, getProductReviews} from "@/lib/reviews";
 import {getInventoryMapBySkus} from "@/lib/inventory";
-import { isProductAvailableInCustomerStore } from '@/lib/cart';
+import { getInventorySupplyContext, isProductAvailableInCustomerStore } from '@/lib/cart';
 import ProductReviews from "@/components/ProductReviews";
 import { getBrandByKey, getProductBrandKey } from '@/lib/brands';
 import { getProductSubscriptionOffers } from '@/lib/recurrence';
@@ -67,6 +67,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         .map((variant) => variant.sku)
         .filter((sku): sku is string => Boolean(sku));
 
+    const inventoryContext = await getInventorySupplyContext();
     const [
         inventoryMap,
         isAvailableInStore,
@@ -74,14 +75,25 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         relatedRatings,
         subscriptionOptionsResult,
     ] = await Promise.all([
-        getInventoryMapBySkus(skus),
+        getInventoryMapBySkus(skus, inventoryContext),
         isProductAvailableInCustomerStore(product.id),
-        getInventoryMapBySkus(relatedSkus),
+        getInventoryMapBySkus(relatedSkus, inventoryContext),
         Promise.all(relatedProducts.map((relatedProduct) => getProductRating(relatedProduct.id))),
         getProductSubscriptionOffers(product, locale)
             .then((offers) => ({ offers }))
             .catch((error: unknown) => ({ error })),
     ]);
+    if (skus.includes('oo789-uv-2015')) {
+        // TEMP diagnostics for the reported stock issue; remove once verified.
+        console.info('[inventory-diagnostic] product page', {
+            sku: 'oo789-uv-2015',
+            productId: product.id,
+            storeKey: inventoryContext.storeKey ?? null,
+            eligibleChannelIds: inventoryContext.supplyChannelIds,
+            finalAvailableQuantity: inventoryMap['oo789-uv-2015'],
+            isAvailableInStore,
+        });
+    }
     const subscriptionOffers =
         'offers' in subscriptionOptionsResult
             ? subscriptionOptionsResult.offers

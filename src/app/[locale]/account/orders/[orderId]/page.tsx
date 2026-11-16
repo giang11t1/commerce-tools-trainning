@@ -6,6 +6,7 @@ import { getOrderById } from '@/lib/orders';
 import AccountSidebar from '@/components/AccountSidebar';
 import PriceDisplay from '@/components/PriceDisplay';
 import { getCartTaxAmount, getSubtotalMoney } from '@/lib/checkout-utils';
+import OrderPaymentStatus from '@/components/account/OrderPaymentStatus';
 
 interface OrderDetailPageProps {
     params: Promise<{ orderId: string }>;
@@ -59,6 +60,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
                     {/* Main Content */}
                     <div className="md:col-span-3 space-y-6">
+                        {order.businessUnit && <OrderPaymentStatus orderId={order.id} />}
                         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                             <div className="flex flex-col md:flex-row md:justify-between md:items-center border-b border-gray-100 pb-4 mb-4 gap-4">
                                 <div>

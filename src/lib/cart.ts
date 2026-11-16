@@ -12,6 +12,16 @@ import {
     isReadableCart,
     isUsableCart,
 } from './cart-lifecycle';
+import { associateInUnit, getSelectedBusinessUnit } from './b2b-context';
+import { assertBusinessCart } from './b2b-cart-draft';
+import {
+    getInventoryAvailabilityBySkus,
+    type InventorySupplyContext,
+} from './inventory';
+import {
+    resolveEligibleSupplyChannelIds,
+    selectLineItemSupplyChannelId,
+} from './inventory-availability';
 
 const CART_COOKIE = 'cartId';
 const CART_EXPANSIONS = ['lineItems[*].recurrenceInfo.recurrencePolicy'];
@@ -23,6 +33,9 @@ type CartSessionContext = {
     storeKey?: string;
     // Distribution channel used for line item price selection.
     distributionChannelId?: string;
+    // Inventory supply channels of the Store (empty when no Store applies).
+    supplyChannelIds?: string[];
+    businessUnitKey?: string;
 };
 
 async function getDefaultDistributionChannelId() {
@@ -63,6 +76,7 @@ export const getCartSessionContext = cache(async (): Promise<CartSessionContext>
     }
 
     const customer = await getCustomerById(customerId);
+    const selected = await getSelectedBusinessUnit();
     const customerChannelId =
         customer?.custom?.fields?.priceChannelId as string | undefined;
     const storeKeys =
@@ -86,15 +100,72 @@ export const getCartSessionContext = cache(async (): Promise<CartSessionContext>
             customerId,
             storeKey: store.key,
             distributionChannelId,
+            supplyChannelIds: store.supplyChannels.map((channel) => channel.id),
+            businessUnitKey: selected?.unit.key,
         };
     }
 
     return {
         customerId,
+        businessUnitKey: selected?.unit.key,
         distributionChannelId:
             customerChannelId ?? (await getDefaultDistributionChannelId()),
     };
 });
+
+async function getDefaultInventoryChannelId() {
+    try {
+        const channel = await getChannelByKey(CHANNEL_KEYS.inventory);
+        return channel.id;
+    } catch (error) {
+        console.error('Failed to resolve the default inventory channel:', error);
+        return undefined;
+    }
+}
+
+/**
+ * Store and inventory supply channels used for stock display and line items.
+ * Customers without a Store keep the storefront's default warehouse.
+ */
+export const getInventorySupplyContext = cache(async (): Promise<InventorySupplyContext> => {
+    const { storeKey, supplyChannelIds } = await getCartSessionContext();
+
+    return {
+        storeKey,
+        supplyChannelIds: resolveEligibleSupplyChannelIds(
+            supplyChannelIds,
+            supplyChannelIds?.length ? undefined : await getDefaultInventoryChannelId(),
+        ),
+    };
+});
+
+/**
+ * Supply channel for a new line item: the Store-eligible channel that the
+ * displayed stock for this variant was taken from.
+ */
+export async function getLineItemSupplyChannelId(productId: string, variantId: number) {
+    const context = await getInventorySupplyContext();
+    if (context.supplyChannelIds.length <= 1) {
+        return context.supplyChannelIds[0];
+    }
+
+    const product = await apiRoot
+        .withProjectKey({
+            projectKey: process.env.CT_PROJECT_KEY!,
+        })
+        .productProjections()
+        .withId({ ID: productId })
+        .get()
+        .execute();
+    const variant = [product.body.masterVariant, ...product.body.variants]
+        .find((candidate) => candidate.id === variantId);
+    if (!variant?.sku) {
+        return context.supplyChannelIds[0];
+    }
+
+    const availability = await getInventoryAvailabilityBySkus([variant.sku], context);
+    return selectLineItemSupplyChannelId(availability[variant.sku], context.supplyChannelIds);
+}
 
 export const STORE_PRODUCT_UNAVAILABLE_MESSAGE =
     'This product is not available in your store.';
@@ -138,18 +209,29 @@ export async function getDistributionChannelId(): Promise<string | undefined> {
     return distributionChannelId;
 }
 
-async function fetchCart(cartId: string) {
-    const response = await apiRoot
+export async function getCartRequest(cartId: string) {
+    const selected = await getSelectedBusinessUnit();
+    if (selected) {
+        return associateInUnit(selected.customerId, selected.unit.key)
+            .carts().withId({ ID: cartId });
+    }
+    return apiRoot
         .withProjectKey({
             projectKey: process.env.CT_PROJECT_KEY!,
         })
         .carts()
         .withId({
             ID: cartId,
-        })
-        .get()
-        .execute();
+        });
+}
 
+async function fetchCart(cartId: string) {
+    const response = await (await getCartRequest(cartId))
+        .get({ queryArgs: { expand: CART_EXPANSIONS } })
+        .execute();
+    const selected = await getSelectedBusinessUnit();
+    if (selected) assertBusinessCart(response.body, selected.customerId, selected.unit.key);
+    else if (response.body.businessUnit) throw new Error('Select the Business Unit for this cart before continuing.');
     return response.body;
 }
 
@@ -230,14 +312,7 @@ export async function getOrCreateCart() {
                 }
 
                 if (actions.length > 0) {
-                    const updateResponse = await apiRoot
-                        .withProjectKey({
-                            projectKey: process.env.CT_PROJECT_KEY!,
-                        })
-                        .carts()
-                        .withId({
-                            ID: cart.id,
-                        })
+                    const updateResponse = await (await getCartRequest(cart.id))
                         .post({
                             queryArgs: { expand: CART_EXPANSIONS },
                             body: {
@@ -254,6 +329,9 @@ export async function getOrCreateCart() {
             }
 
             if (isReadableCart(cart, context.customerId)) {
+                if (context.businessUnitKey) {
+                    throw new Error('Your business cart market or Store changed. Review it before creating another cart.');
+                }
                 carryOverShippingAddress = cart.shippingAddress;
                 carryOverBillingAddress = cart.billingAddress;
                 carryOverLineItems = cart.lineItems.map((lineItem) => ({
@@ -290,12 +368,14 @@ export async function getOrCreateCart() {
 
     // Create new cart
     const createCart = async (lineItems: LineItemDraft[]) => {
-        const response = await apiRoot
+        const request = context.businessUnitKey && context.customerId
+            ? associateInUnit(context.customerId, context.businessUnitKey).carts()
+            : apiRoot
             .withProjectKey({
                 projectKey: process.env.CT_PROJECT_KEY!,
             })
-            .carts()
-            .post({
+            .carts();
+        const response = await request.post({
                 queryArgs: { expand: CART_EXPANSIONS },
                 body: {
                     currency: market.currency,
@@ -307,6 +387,9 @@ export async function getOrCreateCart() {
                         billingAddress: carryOverBillingAddress,
                     }),
                     ...(context.customerId && { customerId: context.customerId }),
+                    ...(context.businessUnitKey && {
+                        businessUnit: { typeId: 'business-unit', key: context.businessUnitKey },
+                    }),
                     ...(context.storeKey && {
                         store: {
                             typeId: 'store',
@@ -326,7 +409,7 @@ export async function getOrCreateCart() {
     try {
         cart = await createCart(carryOverLineItems);
     } catch (error) {
-        if (carryOverLineItems.length === 0 || marketMigration) {
+        if (carryOverLineItems.length === 0 || marketMigration || context.businessUnitKey) {
             throw error;
         }
 

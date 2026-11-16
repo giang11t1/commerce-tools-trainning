@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInventoryMapBySkus } from '@/lib/inventory';
+import { getInventorySupplyContext } from '@/lib/cart';
 
 export async function POST(request: NextRequest) {
     try {
@@ -7,10 +8,14 @@ export async function POST(request: NextRequest) {
 
         const skus = body.skus;
 
-        if (!Array.isArray(skus)) {
+        if (
+            !Array.isArray(skus) ||
+            skus.length > 500 ||
+            !skus.every((sku) => typeof sku === 'string' && sku.length > 0 && sku.length <= 256)
+        ) {
             return NextResponse.json(
                 {
-                    error: 'skus must be an array',
+                    error: 'skus must be an array of up to 500 non-empty strings',
                 },
                 {
                     status: 400,
@@ -19,7 +24,7 @@ export async function POST(request: NextRequest) {
         }
 
         const inventory =
-            await getInventoryMapBySkus(skus);
+            await getInventoryMapBySkus(skus, await getInventorySupplyContext());
 
         return NextResponse.json({
             inventory,

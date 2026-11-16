@@ -5,6 +5,7 @@ import CategoryProductList from "@/components/CategoryProductList";
 import SearchSidebar from '@/components/SearchSidebar';
 import {getProductRating} from "@/lib/reviews";
 import {getInventoryMapBySkus} from "@/lib/inventory";
+import { getInventorySupplyContext } from "@/lib/cart";
 import { searchProducts } from '@/lib/product-search';
 import { getBrands } from '@/lib/brands';
 import { getLocale, getTranslations } from 'next-intl/server';
@@ -80,7 +81,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         .map((product) => product.masterVariant.sku)
         .filter(Boolean) as string[];
 
-    const inventoryMap = await getInventoryMapBySkus(skus);
+    const inventoryMap = await getInventoryMapBySkus(skus, await getInventorySupplyContext());
     const activeFilters = [];
     const parsedMinPrice = minPrice ? Number.parseFloat(minPrice) : undefined;
     const parsedMaxPrice = maxPrice ? Number.parseFloat(maxPrice) : undefined;

@@ -11,6 +11,7 @@ import { getInventoryMapBySkus } from './inventory';
 import { getProductRating } from './reviews';
 import {
     getCartSessionContext,
+    getInventorySupplyContext,
     isProductAvailableInCustomerStore,
 } from './cart';
 import {
@@ -718,7 +719,7 @@ export async function getCompareProducts(
         ...product.variants.map((variant) => variant.sku),
     ]).filter((sku): sku is string => Boolean(sku));
     const [inventoryMap, ratings, storeAvailability] = await Promise.all([
-        getInventoryMapBySkus(skus),
+        getInventoryMapBySkus(skus, await getInventorySupplyContext()),
         Promise.all(products.map((product) => getProductRating(product.id))),
         Promise.all(
             products.map((product) =>

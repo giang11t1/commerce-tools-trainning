@@ -9,6 +9,8 @@ import type {
 } from '@commercetools/platform-sdk';
 import { apiRoot } from './commercetools';
 import { getCartSessionContext } from './cart';
+import { assertPaymentCheckoutAllowed } from './b2b-approval';
+import { associateInUnit } from './b2b-context';
 import { getCustomerById } from './customer';
 import {
     createOrderIdempotently,
@@ -128,10 +130,22 @@ async function getOrderForCart(
     return response.body.results[0];
 }
 
+async function assertCartPaymentAllowed(cart: Cart) {
+    try {
+        await assertPaymentCheckoutAllowed(cart);
+    } catch (error) {
+        if (error instanceof Error && !('statusCode' in error)) {
+            throw new MockOrderError(error.message, 409);
+        }
+        throw error;
+    }
+}
+
 async function createOrder(
     projectKey: string,
     cart: Cart,
     storeKey?: string,
+    customerId?: string,
 ): Promise<Order> {
     const draft: OrderFromCartDraft = {
         cart: { typeId: 'cart', id: cart.id },
@@ -139,8 +153,15 @@ async function createOrder(
         orderState: 'Open',
         paymentState: 'Pending',
     };
+    const businessUnitKey = cart.businessUnit?.key;
     const response = await withCtStage('create the order', () =>
-        storeKey
+        businessUnitKey && customerId
+            // Business orders keep their Associate context; commercetools still applies Approval Rules.
+            ? associateInUnit(customerId, businessUnitKey)
+                .orders()
+                .post({ body: draft })
+                .execute()
+            : storeKey
             ? apiRoot
                 .withProjectKey({ projectKey })
                 .inStoreKeyWithStoreKeyValue({ storeKey })
@@ -284,6 +305,7 @@ export async function createMockOrderFromCurrentCart(input: MockOrderInput) {
     if (cart.lineItems.length === 0) {
         throw new MockOrderError('Your cart is empty.', 400);
     }
+    await assertCartPaymentAllowed(cart);
 
     const customer = context.customerId
         ? await getCustomerById(context.customerId)
@@ -395,8 +417,13 @@ export async function createMockOrderFromCurrentCart(input: MockOrderInput) {
         throw new MockOrderError(cartValidationError, 400);
     }
 
+    if (cart.businessUnit) {
+        // Address and shipping updates can change the total; re-check against the final cart.
+        await assertCartPaymentAllowed(cart);
+    }
+
     return createOrderIdempotently(
         findExisting,
-        () => createOrder(projectKey, cart, context.storeKey),
+        () => createOrder(projectKey, cart, context.storeKey, context.customerId),
     );
 }

@@ -10,12 +10,14 @@ export function createCartLineItemDraft({
     variantId,
     quantity,
     distributionChannelId,
+    supplyChannelId,
     recurringPrice,
 }: {
     productId: string;
     variantId: number;
     quantity: number;
     distributionChannelId?: string;
+    supplyChannelId?: string;
     recurringPrice?: RecurringLineItemPrice;
 }): LineItemDraft {
     return {
@@ -26,6 +28,12 @@ export function createCartLineItemDraft({
             distributionChannel: {
                 typeId: 'channel',
                 id: distributionChannelId,
+            },
+        }),
+        ...(supplyChannelId && {
+            supplyChannel: {
+                typeId: 'channel',
+                id: supplyChannelId,
             },
         }),
         ...(recurringPrice && {

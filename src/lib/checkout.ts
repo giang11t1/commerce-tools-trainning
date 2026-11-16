@@ -9,7 +9,9 @@ import type {
     ShippingMethod,
 } from '@commercetools/platform-sdk';
 import { getCommerceMarket } from '@/lib/commerce-market';
-import { getCart, getCartSessionContext } from '@/lib/cart';
+import { getCart, getCartRequest, getCartSessionContext } from '@/lib/cart';
+import { assertCurrentCartPaymentAllowed } from './b2b-approval';
+import { associateInUnit, getSelectedBusinessUnit, requireBusinessUnit } from './b2b-context';
 import { getSession } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { isCommercetoolsNotFound } from '@/lib/cart-lifecycle';
@@ -27,6 +29,8 @@ export async function createCheckoutSession(
     cartId: string,
     locale = 'en-US',
 ) {
+    const allowedCart = await assertCurrentCartPaymentAllowed();
+    if (allowedCart.id !== cartId) throw new Error('Your cart changed. Refresh checkout and try again.');
     const projectKey = process.env.CT_PROJECT_KEY;
     const apiUrl = process.env.CT_API_URL;
 
@@ -295,10 +299,7 @@ async function fetchCheckoutCart(cartId: string): Promise<Cart> {
     const projectKey = process.env.CT_PROJECT_KEY;
     if (!projectKey) throw new Error('CT_PROJECT_KEY is not configured');
 
-    const response = await apiRoot
-        .withProjectKey({ projectKey })
-        .carts()
-        .withId({ ID: cartId })
+    const response = await (await getCartRequest(cartId))
         .get({ queryArgs: { expand: CART_EXPANSIONS } })
         .execute();
 
@@ -327,6 +328,11 @@ async function fetchCheckoutOrder(
                 .orders()
                 .withId({ ID: orderId });
         const response = await request.get().execute();
+        if (response.body.businessUnit) {
+            const context = await requireBusinessUnit(response.body.businessUnit.key);
+            return (await associateInUnit(context.customerId, context.unit.key)
+                .orders().withId({ ID: orderId }).get().execute()).body;
+        }
         return response.body;
     } catch (error) {
         if (isCommercetoolsNotFound(error)) return undefined;
@@ -345,7 +351,10 @@ async function findCheckoutOrderForCart(
         where: `cart(id=${JSON.stringify(cartId)})`,
         limit: 1,
     };
-    const response = storeKey
+    const selected = await getSelectedBusinessUnit();
+    const response = selected
+        ? await associateInUnit(selected.customerId, selected.unit.key).orders().get({ queryArgs }).execute()
+        : storeKey
         ? await apiRoot
             .withProjectKey({ projectKey })
             .inStoreKeyWithStoreKeyValue({ storeKey })
@@ -596,10 +605,7 @@ export async function updateCartWithShippingAddress(
                 try {
                     const response = await withCheckoutDiagnostics(
                         'update-cart-address',
-                        () => apiRoot
-                            .withProjectKey({ projectKey })
-                            .carts()
-                            .withId({ ID: cart.id })
+                        async () => (await getCartRequest(cart.id))
                             .post({
                                 queryArgs: { expand: CART_EXPANSIONS },
                                 body: { version: cart.version, actions },
@@ -676,10 +682,7 @@ export async function setCheckoutShippingMethod(
         try {
             const response = await withCheckoutDiagnostics(
                 'update-cart-shipping-method',
-                () => apiRoot
-                    .withProjectKey({ projectKey })
-                    .carts()
-                    .withId({ ID: cart.id })
+                async () => (await getCartRequest(cart.id))
                     .post({
                         queryArgs: { expand: CART_EXPANSIONS },
                         body: {

@@ -6,6 +6,10 @@ import {
 } from '@commercetools/platform-sdk';
 import { ctpClient } from './client';
 import { getChannelByKey, CHANNEL_KEYS } from './channels';
+import {
+    computeSkuAvailability,
+    type SkuAvailability,
+} from './inventory-availability';
 
 const projectKey = process.env.CT_PROJECT_KEY ?? '';
 
@@ -141,75 +145,105 @@ export async function updateInventoryQuantity({
 }
 
 
+const SKU_QUERY_CHUNK_SIZE = 50;
+const INVENTORY_PAGE_SIZE = 500;
+// TEMP diagnostics for the reported stock issue; remove once verified.
+const DIAGNOSTIC_SKU = 'oo789-uv-2015';
+
+export type InventorySupplyContext = {
+    storeKey?: string;
+    // Inventory supply channels the current Store may sell from.
+    supplyChannelIds: string[];
+};
+
+/**
+ * All inventory entries for the SKUs, across every supply channel.
+ */
 export async function getInventoryBySkus(
     skus: string[]
 ): Promise<InventoryEntry[]> {
-    if (!skus.length) {
-        return [];
+    const uniqueSkus = [...new Set(skus.filter(Boolean))];
+    const entries: InventoryEntry[] = [];
+
+    for (let index = 0; index < uniqueSkus.length; index += SKU_QUERY_CHUNK_SIZE) {
+        const where = `sku in (${uniqueSkus
+            .slice(index, index + SKU_QUERY_CHUNK_SIZE)
+            .map((sku) => JSON.stringify(sku))
+            .join(',')})`;
+
+        for (let offset = 0; ; offset += INVENTORY_PAGE_SIZE) {
+            const response: ClientResponse<InventoryPagedQueryResponse> =
+                await apiRoot
+                    .withProjectKey({
+                        projectKey,
+                    })
+                    .inventory()
+                    .get({
+                        queryArgs: {
+                            where,
+                            sort: ['id asc'],
+                            limit: INVENTORY_PAGE_SIZE,
+                            offset,
+                            withTotal: false,
+                        },
+                    })
+                    .execute();
+
+            entries.push(...response.body.results);
+            if (response.body.results.length < INVENTORY_PAGE_SIZE) break;
+        }
     }
 
-    const where = `sku in (${skus
-        .map((sku) => JSON.stringify(sku))
-        .join(',')})`;
+    return entries;
+}
 
-    console.log('INVENTORY WHERE:', where);
+export async function getInventoryAvailabilityBySkus(
+    skus: string[],
+    context: InventorySupplyContext
+): Promise<Record<string, SkuAvailability>> {
+    const uniqueSkus = [...new Set(skus.filter(Boolean))];
+    if (!uniqueSkus.length) {
+        return {};
+    }
 
-    const inventoryEntries: ClientResponse<InventoryPagedQueryResponse> =
-        await apiRoot
-            .withProjectKey({
-                projectKey,
-            })
-            .inventory()
-            .get({
-                queryArgs: {
-                    where,
-                    limit: 500,
-                },
-            })
-            .execute();
-
-    console.log(
-        'RAW INVENTORY RESULTS:',
-        inventoryEntries.body.results
+    const entries = await getInventoryBySkus(uniqueSkus);
+    const availability = computeSkuAvailability(
+        uniqueSkus,
+        entries,
+        context.supplyChannelIds
     );
 
-    const inventoryChannel = await getChannelByKey(
-        CHANNEL_KEYS.inventory
-    );
+    if (uniqueSkus.includes(DIAGNOSTIC_SKU)) {
+        console.info('[inventory-diagnostic]', {
+            sku: DIAGNOSTIC_SKU,
+            storeKey: context.storeKey ?? null,
+            eligibleChannelIds: context.supplyChannelIds,
+            entries: entries
+                .filter((entry) => entry.sku === DIAGNOSTIC_SKU)
+                .map((entry) => ({
+                    id: entry.id,
+                    supplyChannelId: entry.supplyChannel?.id ?? null,
+                    quantityOnStock: entry.quantityOnStock,
+                    availableQuantity: entry.availableQuantity,
+                })),
+            finalAvailableQuantity: availability[DIAGNOSTIC_SKU].availableQuantity,
+            selectedSupplyChannelId: availability[DIAGNOSTIC_SKU].supplyChannelId ?? null,
+        });
+    }
 
-    console.log(
-        'INVENTORY CHANNEL:',
-        inventoryChannel
-    );
-
-    const filtered = inventoryEntries.body.results.filter(
-        (entry) =>
-            entry.supplyChannel?.id === inventoryChannel.id || !entry.supplyChannel
-    );
-
-    console.log(
-        'FILTERED INVENTORY:',
-        filtered
-    );
-
-    return filtered;
+    return availability;
 }
 
 export async function getInventoryMapBySkus(
-    skus: string[]
-) {
+    skus: string[],
+    context: InventorySupplyContext
+): Promise<Record<string, number>> {
+    const availability = await getInventoryAvailabilityBySkus(skus, context);
 
-    console.log('INPUT SKUS:', skus);
-
-    const inventories =
-        await getInventoryBySkus(skus);
-
-    return inventories.reduce<
-        Record<string, number>
-    >((map, inventory) => {
-        map[inventory.sku] =
-            inventory.availableQuantity;
-
-        return map;
-    }, {});
+    return Object.fromEntries(
+        Object.entries(availability).map(([sku, value]) => [
+            sku,
+            value.availableQuantity,
+        ])
+    );
 }

@@ -1,12 +1,13 @@
 'use server';
 
-import {apiRoot} from '@/lib/commercetools';
 import {
     getCart,
     getOrCreateCart,
     getDistributionChannelId,
+    getLineItemSupplyChannelId,
     isProductAvailableInCustomerStore,
     STORE_PRODUCT_UNAVAILABLE_MESSAGE,
+    getCartRequest,
 } from '@/lib/cart';
 import { getSubscriptionOfferForVariant } from '@/lib/recurrence';
 import { createCartLineItemDraft } from '@/lib/cart-line-item';
@@ -63,14 +64,7 @@ async function postCartActions(
         statusCode: number | undefined,
     ) => void,
 ): Promise<Cart> {
-    const response = await apiRoot
-        .withProjectKey({
-            projectKey: process.env.CT_PROJECT_KEY!,
-        })
-        .carts()
-        .withId({
-            ID: cart.id,
-        })
+    const response = await (await getCartRequest(cart.id))
         .post({
             queryArgs: { expand: ['lineItems[*].recurrenceInfo.recurrencePolicy'] },
             body: {
@@ -215,7 +209,10 @@ export async function addToCart({
         }
 
         const cart = await getOrCreateCart();
-        const distributionChannelId = await getDistributionChannelId();
+        const [distributionChannelId, supplyChannelId] = await Promise.all([
+            getDistributionChannelId(),
+            getLineItemSupplyChannelId(productId, variantId),
+        ]);
 
         const updatedCart = await updateCart(cart, (latestCart) => {
             const actions: CartUpdateAction[] = [];
@@ -246,6 +243,7 @@ export async function addToCart({
                 variantId,
                 quantity,
                 distributionChannelId,
+                supplyChannelId,
                 recurringPrice: recurringPrice
                     ? {
                           recurrencePolicyId: recurringPrice.recurrencePolicyId,

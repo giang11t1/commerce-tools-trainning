@@ -27,6 +27,8 @@ type UseCheckoutPaymentFlowOptions = {
     hasCart: boolean;
     cart: Cart | null;
     replaceCart: (cart: Cart) => void;
+    /** True while payment must not start, e.g. a business cart needs or is still evaluating approval. */
+    paymentBlocked?: boolean;
 };
 
 async function waitForCheckoutHost(): Promise<void> {
@@ -62,6 +64,7 @@ export function useCheckoutPaymentFlow({
     hasCart,
     cart,
     replaceCart,
+    paymentBlocked = false,
 }: UseCheckoutPaymentFlowOptions) {
     const router = useRouter();
     const locale = useLocale();
@@ -206,6 +209,7 @@ export function useCheckoutPaymentFlow({
     );
 
     const initializePaymentFlow = useCallback(async () => {
+        if (paymentBlocked) throw new Error('Payment is unavailable until approval requirements are confirmed.');
         if (!hasCart) {
             throw new Error('An active cart is required to initialize payment.');
         }
@@ -222,7 +226,7 @@ export function useCheckoutPaymentFlow({
         const session = await createFreshCheckoutSession();
         await waitForCheckoutHost();
         startPaymentFlow(session);
-    }, [cart, createFreshCheckoutSession, hasCart, startPaymentFlow]);
+    }, [paymentBlocked, cart, createFreshCheckoutSession, hasCart, startPaymentFlow]);
 
     const ensurePaymentFlowInitialized = useCallback(async () => {
         if (isSubmitting) {
@@ -249,8 +253,9 @@ export function useCheckoutPaymentFlow({
     }, [initializePaymentFlow, isSubmitting]);
 
     useEffect(() => {
-        if (currentStep !== 2 || !hasCart) {
+        if (paymentBlocked || currentStep !== 2 || !hasCart) {
             paymentFlowInitialized.current = false;
+            if (paymentBlocked) close();
             return;
         }
 
@@ -291,7 +296,7 @@ export function useCheckoutPaymentFlow({
         return () => {
             cancelled = true;
         };
-    }, [currentStep, formData.paymentMethod, hasCart, initializePaymentFlow]);
+    }, [paymentBlocked, currentStep, formData.paymentMethod, hasCart, initializePaymentFlow]);
 
     return {
         checkoutSession,

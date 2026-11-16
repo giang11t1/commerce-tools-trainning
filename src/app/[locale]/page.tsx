@@ -9,7 +9,7 @@ import { Link } from '@/../i18n/navigation';
 import {getProductRating} from "@/lib/reviews";
 import {ProductProjection} from "@commercetools/platform-sdk";
 import {getInventoryMapBySkus} from "@/lib/inventory";
-import {isProductAvailableInCustomerStore} from "@/lib/cart";
+import {getInventorySupplyContext, isProductAvailableInCustomerStore} from "@/lib/cart";
 import { getTranslations } from 'next-intl/server';
 
 const getAllVariants = (product: ProductProjection) => [
@@ -97,8 +97,9 @@ export default async function Home({
 
     const skus = getVariantSkus(products);
 
+    const inventoryContext = await getInventorySupplyContext();
     const [inventoryMap, storeAvailability] = await Promise.all([
-        getInventoryMapBySkus(skus),
+        getInventoryMapBySkus(skus, inventoryContext),
         Promise.all(
             products.map(
                 async (product) =>
@@ -132,7 +133,7 @@ export default async function Home({
     const skusRevert = getVariantSkus(reversedProducts);
 
     const inventoryMapRevert =
-        await getInventoryMapBySkus(skusRevert);
+        await getInventoryMapBySkus(skusRevert, inventoryContext);
 
     const productsWithInventoryRevert = productsWithRatingsRevert.map(
         ({ product, rating }) => ({

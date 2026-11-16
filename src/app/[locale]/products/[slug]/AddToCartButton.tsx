@@ -100,7 +100,7 @@ export default function AddToCartButton({
         <div className="flex flex-col gap-4">
             {!isAvailableInStore && (
                 <p className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-                    This product is not available in your store.
+                    {translate('product.notAvailableInStore')}
                 </p>
             )}
             {canAddToCart && (
@@ -129,7 +129,7 @@ export default function AddToCartButton({
                     onClick={handleAddToCart}
                     disabled={!canAddToCart || isAdding}
                 >
-                    {!isAvailableInStore ? 'Out of stock' :
+                    {!isAvailableInStore ? translate('product.unavailableInStore') :
                     isOutOfStock ? translate('product.outOfStock') :
                     recurrencePolicyId ? subscriptionTranslate('addSubscriptionToCart') :
                     translate('cart.cart-add')}
