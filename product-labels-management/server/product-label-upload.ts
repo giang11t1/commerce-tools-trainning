@@ -79,19 +79,17 @@ export async function authorizeLabelUpload(
         audience: config.url,
         algorithms: ['RS256'],
         requiredClaims: ['exp', 'iat', 'sub'],
-        maxTokenAge: '60s',
       }));
     } catch (error) {
-      console.error('[Product Labels] JWT verification failed', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        code:
-          error && typeof error === 'object' && 'code' in error
-            ? error.code
-            : undefined,
-        claim:
-          error && typeof error === 'object' && 'claim' in error
-            ? error.claim
-            : undefined,
+      const err = error as Error & {
+        code?: string;
+        claim?: string;
+      };
+
+      console.error('[Product Labels JWT]', {
+        name: err.name,
+        code: err.code,
+        claim: err.claim,
       });
 
       throw new LabelUploadError(
