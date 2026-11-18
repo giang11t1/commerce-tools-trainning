@@ -28,8 +28,11 @@ export default {
       initialProjectKey: process.env.CT_PROJECT_KEY || 'b2c-sample-project',
     },
     production: {
-      applicationId: process.env.MC_APPLICATION_ID || 'local-development-only',
-      url: process.env.MC_APP_URL || 'https://localhost:3001',
+      applicationId:
+        process.env.MC_APPLICATION_ID || 'cmwlrpu5c001y01xn6durqqh5',
+      url:
+        process.env.MC_APP_URL ||
+        'https://product-labels-management.vercel.app',
     },
   },
   oAuthScopes: {
