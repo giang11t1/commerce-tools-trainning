@@ -8,7 +8,7 @@
     "compile-html": "mc-scripts compile-html",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "ENABLE_NEW_JSX_TRANSFORM=true tsx --test src/*.test.ts"
+    "test": "ENABLE_NEW_JSX_TRANSFORM=true tsx --test src/*.test.ts server/*.test.ts"
   },
   "dependencies": {
     "@commercetools-frontend/application-components": "27.15.0",
@@ -26,12 +26,15 @@
     "@commercetools-uikit/notifications": "20.6.7",
     "@commercetools-uikit/text": "20.6.7",
     "@emotion/react": "^11.14.0",
+    "cloudinary": "^2.11.0",
+    "jose": "^6.2.17",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-intl": "^7.1.4",
     "react-redux": "9.3.0",
     "react-router-dom": "5.3.4",
-    "redux": "5.0.1"
+    "redux": "5.0.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@commercetools-frontend/eslint-config-mc-app": "27.15.0",
@@ -40,6 +43,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-router-dom": "^5.3.3",
+    "@vercel/node": "^31.0.2",
     "eslint": "^9",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"

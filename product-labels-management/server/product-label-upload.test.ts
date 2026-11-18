@@ -6,7 +6,8 @@ import { createImageHandler } from '../api/product-labels/images';
 import { MAX_IMAGE_BYTES, validateUploadedImage } from '../src/label-media';
 
 const issuer = 'https://mc-api.us-central1.gcp.commercetools.com';
-const url = 'https://labels.example/api/product-labels/images';
+const url =
+  'https://commerce-tools-trainning-product-la-virid.vercel.app/api/product-labels/images';
 const project = 'test-project';
 const env = {
   MC_LABEL_UPLOAD_ISSUER: issuer,
