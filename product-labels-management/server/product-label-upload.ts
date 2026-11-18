@@ -33,12 +33,16 @@ export type LabelUploadConfig = {
 
 export function labelUploadConfig(env: Record<string, string | undefined>): LabelUploadConfig {
     const config = {
-        issuer: env.MC_LABEL_UPLOAD_ISSUER ?? '',
-        url: env.MC_LABEL_UPLOAD_URL ?? '',
-        projectKey: env.MC_LABEL_UPLOAD_PROJECT_KEY ?? '',
-        cloudName: env.CLOUDINARY_CLOUD_NAME ?? '',
-        apiKey: env.CLOUDINARY_API_KEY ?? '',
-        apiSecret: env.CLOUDINARY_API_SECRET ?? '',
+      issuer:
+        env.MC_LABEL_UPLOAD_ISSUER ??
+        'https://mc-api.us-central1.gcp.commercetools.com',
+      url:
+        env.MC_LABEL_UPLOAD_URL ??
+        'https://commerce-tools-trainning-product-la-virid.vercel.app/api/product-labels/images',
+      projectKey: env.MC_LABEL_UPLOAD_PROJECT_KEY ?? 'b2c-sample-project',
+      cloudName: env.CLOUDINARY_CLOUD_NAME ?? 'fqju9kdr',
+      apiKey: env.CLOUDINARY_API_KEY ?? '223746189666272',
+      apiSecret: env.CLOUDINARY_API_SECRET ?? 'xIFcmpN0jpDC8zS-yGqLAhO2MlI',
     };
     if (Object.values(config).some((value) => !value))
         throw new LabelUploadError(503, 'Image uploads are not configured on the server.');
