@@ -1,0 +1,47 @@
+{
+  "name": "product-labels-management",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "ENABLE_NEW_JSX_TRANSFORM=true mc-scripts start",
+    "build": "ENABLE_NEW_JSX_TRANSFORM=true mc-scripts build",
+    "compile-html": "mc-scripts compile-html",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "ENABLE_NEW_JSX_TRANSFORM=true tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@commercetools-frontend/application-components": "27.15.0",
+    "@commercetools-frontend/application-config": "27.15.0",
+    "@commercetools-frontend/application-shell": "27.15.0",
+    "@commercetools-frontend/application-shell-connectors": "27.15.0",
+    "@commercetools-frontend/assets": "27.15.0",
+    "@commercetools-frontend/constants": "27.15.0",
+    "@commercetools-frontend/i18n": "27.15.0",
+    "@commercetools-frontend/mc-scripts": "27.15.0",
+    "@commercetools-frontend/permissions": "27.15.0",
+    "@commercetools-frontend/sdk": "27.15.0",
+    "@commercetools-uikit/flat-button": "20.6.7",
+    "@commercetools-uikit/loading-spinner": "20.6.7",
+    "@commercetools-uikit/notifications": "20.6.7",
+    "@commercetools-uikit/text": "20.6.7",
+    "@emotion/react": "^11.14.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-intl": "^7.1.4",
+    "react-redux": "9.3.0",
+    "react-router-dom": "5.3.4",
+    "redux": "5.0.1"
+  },
+  "devDependencies": {
+    "@commercetools-frontend/eslint-config-mc-app": "27.15.0",
+    "@commercetools/platform-sdk": "^9.2.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/react-router-dom": "^5.3.3",
+    "eslint": "^9",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
