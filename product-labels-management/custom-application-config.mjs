@@ -19,7 +19,7 @@ export default {
   additionalEnv: {
     labelUploadUrl:
       process.env.MC_LABEL_UPLOAD_URL ||
-      'http://localhost:3000/api/product-labels/images',
+      'https://commerce-tools-trainning-product-la-virid.vercel.app/api/product-labels/images',
   },
   headers: {
     csp: {
