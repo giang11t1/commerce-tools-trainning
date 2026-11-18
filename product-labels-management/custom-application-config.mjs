@@ -1,11 +1,15 @@
 import { entryPointUriPathToPermissionKeys } from '@commercetools-frontend/application-shell/ssr';
 
 const entryPointUriPath = 'product-labels';
+
 const permissions = entryPointUriPathToPermissionKeys(entryPointUriPath);
-const isProduction = (process.env.MC_APP_ENV || process.env.NODE_ENV) === 'production';
-if (isProduction && (!process.env.MC_APPLICATION_ID || !process.env.MC_APP_URL)) {
-  throw new Error('Production requires MC_APPLICATION_ID and MC_APP_URL from the registered Custom Application.');
-}
+
+const applicationId =
+  process.env.MC_APPLICATION_ID || 'cmwlrpu5c001y01xn6durqqh5';
+
+const applicationUrl =
+  process.env.MC_APP_URL ||
+  'https://commerce-tools-trainning-product-la-virid.vercel.app';
 
 /** @type {import('@commercetools-frontend/application-config').ConfigOptionsForCustomApplication} */
 export default {
@@ -28,11 +32,8 @@ export default {
       initialProjectKey: process.env.CT_PROJECT_KEY || 'b2c-sample-project',
     },
     production: {
-      applicationId:
-        process.env.MC_APPLICATION_ID || 'cmwlrpu5c001y01xn6durqqh5',
-      url:
-        process.env.MC_APP_URL ||
-        'https://product-labels-management.vercel.app',
+      applicationId,
+      url: applicationUrl,
     },
   },
   oAuthScopes: {
