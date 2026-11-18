@@ -74,12 +74,30 @@ export async function authorizeLabelUpload(
     }
     let payload;
     try {
-        ({ payload } = await jwtVerify(token, getKey, {
-            issuer: config.issuer, audience: config.url, algorithms: ['RS256'],
-            requiredClaims: ['exp', 'iat', 'sub'], maxTokenAge: '60s',
-        }));
-    } catch {
-        throw new LabelUploadError(401, 'The Merchant Center exchange token is invalid or expired.');
+      ({ payload } = await jwtVerify(token, getKey, {
+        issuer: config.issuer,
+        audience: config.url,
+        algorithms: ['RS256'],
+        requiredClaims: ['exp', 'iat', 'sub'],
+        maxTokenAge: '60s',
+      }));
+    } catch (error) {
+      console.error('[Product Labels] JWT verification failed', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        code:
+          error && typeof error === 'object' && 'code' in error
+            ? error.code
+            : undefined,
+        claim:
+          error && typeof error === 'object' && 'claim' in error
+            ? error.claim
+            : undefined,
+      });
+
+      throw new LabelUploadError(
+        401,
+        'The Merchant Center exchange token is invalid or expired.'
+      );
     }
     if (payload.type !== 'exchange' || typeof payload.sub !== 'string' || !payload.sub)
         throw new LabelUploadError(401, 'A Merchant Center exchange token is required.');
