@@ -13,10 +13,7 @@ const config = {
     },
     production: {
       applicationId: 'cmvozbp69000w01vf9fk9ueab',
-      url: `https://${
-        process.env.CLOUDFLARE_TUNNEL_HOST ||
-        'monte-entrepreneur-commitment-owner.trycloudflare.com'
-      }`,
+      url: process.env.MC_APP_URL,
     },
   },
   oAuthScopes: {
