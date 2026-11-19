@@ -78,7 +78,7 @@ export async function authorizeLabelUpload(
           issuer: config.issuer,
           audience: config.url,
           algorithms: ['RS256'],
-          requiredClaims: ['exp', 'iat', 'sub'],
+          requiredClaims: ['exp', 'sub'],
           clockTolerance: '30s',
         }));
     } catch (error) {
