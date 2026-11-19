@@ -74,12 +74,13 @@ export async function authorizeLabelUpload(
     }
     let payload;
     try {
-      ({ payload } = await jwtVerify(token, getKey, {
-        issuer: config.issuer,
-        audience: config.url,
-        algorithms: ['RS256'],
-        requiredClaims: ['exp', 'iat', 'sub'],
-      }));
+        ({ payload } = await jwtVerify(token, getKey, {
+          issuer: config.issuer,
+          audience: config.url,
+          algorithms: ['RS256'],
+          requiredClaims: ['exp', 'iat', 'sub'],
+          clockTolerance: '30s',
+        }));
     } catch (error) {
       const err = error as Error & {
         code?: string;
