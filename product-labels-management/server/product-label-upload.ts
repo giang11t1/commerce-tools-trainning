@@ -82,16 +82,18 @@ export async function authorizeLabelUpload(
           clockTolerance: '30s',
         }));
     } catch (error) {
-      const err = error as Error & {
-        code?: string;
-        claim?: string;
-      };
+        const err = error as Error & {
+          code?: string;
+          claim?: string;
+          reason?: string;
+        };
 
-      console.error('[Product Labels JWT]', {
-        name: err.name,
-        code: err.code,
-        claim: err.claim,
-      });
+        console.error('[Product Labels JWT]', {
+          name: err.name,
+          code: err.code,
+          claim: err.claim,
+          reason: err.reason,
+        });
 
       throw new LabelUploadError(
         401,
